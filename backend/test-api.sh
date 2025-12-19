@@ -12,6 +12,7 @@ TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbXBJZCI6MSwiY29tcGFueUlkIjoxLCJy
 COMPANY_ID=""
 EMPLOYEE_ID=""
 CONTACT_ID=""
+TRACKING_TOKEN=""
 SESSION_ID=""
 OPPORTUNITY_ID=""
 DEAL_ID=""
@@ -78,6 +79,13 @@ make_request() {
   
   print_result $http_code "$method $endpoint" "$body"
   echo "$body"
+}
+
+# Helper to extract JSON value
+extract_json_value() {
+  local json=$1
+  local key=$2
+  echo "$json" | grep -o "\"$key\":[^,}]*" | sed 's/"'"$key"'"://' | tr -d '"' | head -1
 }
 
 echo -e "${GREEN}"
@@ -218,14 +226,22 @@ make_request "GET" "/api/contacts?status=LEAD" "" "auth"
 
 echo ""
 echo "Testing: GET /api/contacts/$CONTACT_ID (Get Contact by ID)"
-make_request "GET" "/api/contacts/${CONTACT_ID:-1}" "" "auth"
+contact_result=$(make_request "GET" "/api/contacts/${CONTACT_ID:-1}" "" "auth")
+
+# Extract actual tracking token from the contact
+TRACKING_TOKEN=$(echo "$contact_result" | grep -o '"tracking_token":"[^"]*"' | sed 's/"tracking_token":"\([^"]*\)"/\1/')
+echo "  → Extracted Tracking Token: $TRACKING_TOKEN"
 
 echo ""
 echo "Testing: POST /api/contacts/internal/lead-activity (Simulate Email Click - LEAD → MQL)"
-make_request "POST" "/api/contacts/internal/lead-activity" "{
-  \"contactId\": ${CONTACT_ID:-1},
-  \"token\": \"test-tracking-token\"
-}"
+if [ -n "$TRACKING_TOKEN" ]; then
+  make_request "POST" "/api/contacts/internal/lead-activity" "{
+    \"contactId\": ${CONTACT_ID:-1},
+    \"token\": \"$TRACKING_TOKEN\"
+  }"
+else
+  echo -e "${YELLOW}⚠ SKIP${NC} - No tracking token found for contact"
+fi
 
 # =====================================================
 # 6. SESSION ENDPOINTS (MQL/SQL Calls)
