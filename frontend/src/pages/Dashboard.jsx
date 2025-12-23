@@ -333,17 +333,14 @@ const Dashboard = () => {
 
       {/* Contact Detail Sidebar */}
       {selectedContact && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={() => setSelectedContact(null)}
-          />
-          <ContactDetail
-            contact={selectedContact}
-            onClose={() => setSelectedContact(null)}
-            onUpdate={handleUpdateContact}
-          />
-        </>
+        <ContactDetail
+          contact={selectedContact}
+          onClose={() => setSelectedContact(null)}
+          onUpdate={handleUpdateContact}
+          onEmailClick={handleEmailClick}
+          onAddSession={handleAddSession}
+          onFollowupsClick={handleFollowupsClick}
+        />
       )}
 
       {/* Add Contact Modal */}
