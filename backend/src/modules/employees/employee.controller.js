@@ -117,7 +117,18 @@ export const getProfile = async (req, res, next) => {
       });
     }
 
-    res.json(employee);
+    // Return complete profile information
+    res.json({
+      emp_id: employee.emp_id,
+      name: employee.name,
+      email: employee.email,
+      phone: employee.phone,
+      department: employee.department,
+      role: employee.role,
+      company_id: employee.company_id,
+      created_at: employee.created_at,
+      updated_at: employee.updated_at,
+    });
   } catch (error) {
     next(error);
   }

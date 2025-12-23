@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
+import SettingsPage from './pages/SettingsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -102,6 +103,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
                 </ProtectedRoute>
               }
             />

@@ -1,59 +1,302 @@
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { ContactGrid, ContactDetail, AddContactModal } from '../components/contacts';
+import Sidebar from '../components/layout/Sidebar';
+import { getContacts, createContact, updateContact } from '../services/contactService';
+import { Bell, Menu, X, Settings, LogOut, User, ChevronDown } from 'lucide-react';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
+  const [contacts, setContacts] = useState([]);
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [activeStage, setActiveStage] = useState('LEAD');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [contactCounts, setContactCounts] = useState({});
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch contacts on mount and when stage changes
+  useEffect(() => {
+    fetchContacts();
+  }, [activeStage]);
+
+  const fetchContacts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getContacts({ status: activeStage });
+      const contactsArray = Array.isArray(data) ? data : [];
+      setContacts(contactsArray);
+      
+      // Update counts
+      const counts = {};
+      counts[activeStage] = contactsArray.length;
+      setContactCounts(prev => ({ ...prev, ...counts }));
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+      setError('Failed to load contacts. Please try again.');
+      setContacts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddContact = async (contactData) => {
+    try {
+      setSubmitting(true);
+      setError(null);
+      await createContact(contactData);
+      await fetchContacts();
+      setShowAddModal(false);
+    } catch (error) {
+      console.error('Error creating contact:', error);
+      setError(error.response?.data?.message || 'Failed to create contact. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateContact = async (contactId, updates) => {
+    try {
+      setError(null);
+      await updateContact(contactId, updates);
+      await fetchContacts();
+      if (selectedContact && selectedContact.contact_id === contactId) {
+        const updatedContact = contacts.find(c => c.contact_id === contactId);
+        setSelectedContact(updatedContact);
+      }
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      setError(error.response?.data?.message || 'Failed to update contact. Please try again.');
+    }
+  };
+
+  const handleEmailClick = (contact) => {
+    console.log('Email clicked for:', contact);
+    alert(`Email functionality for ${contact.name} will be implemented next`);
+  };
+
+  const handleFollowupsClick = (contact) => {
+    console.log('Followups clicked for:', contact);
+    alert(`Followups functionality for ${contact.name} will be implemented next`);
+  };
+
+  // Get initials for avatar
+  const getInitials = (name) => {
+    if (!name) return '?';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-sky-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-blue-500 rounded-xl flex items-center justify-center">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-xl font-bold text-gray-800">CRM Dashboard</h1>
-            </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Sidebar - Desktop */}
+      <div className="hidden lg:block">
+        <Sidebar
+          activeStage={activeStage}
+          onStageChange={setActiveStage}
+          contactCounts={contactCounts}
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div 
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl">
+            <Sidebar
+              activeStage={activeStage}
+              onStageChange={(stage) => {
+                setActiveStage(stage);
+                setMobileMenuOpen(false);
+              }}
+              contactCounts={contactCounts}
+              collapsed={false}
+              onToggle={() => setMobileMenuOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="lg:ml-64 transition-all duration-300">
+        {/* Top Header */}
+        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100">
+          <div className="flex items-center justify-between h-16 px-4 lg:px-8">
+            {/* Left - Mobile Menu */}
             <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-700">{user?.name}</p>
-                <p className="text-xs text-gray-500">{user?.role}</p>
-              </div>
               <button
-                onClick={logout}
-                className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                onClick={() => setMobileMenuOpen(true)}
+                className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
               >
-                Logout
+                <Menu className="w-5 h-5 text-gray-600" />
+              </button>
+              
+              {/* Page Title - Desktop */}
+              <div className="hidden md:block">
+                <h1 className="text-lg font-semibold text-gray-900">
+                  {activeStage.charAt(0) + activeStage.slice(1).toLowerCase()} Pipeline
+                </h1>
+              </div>
+            </div>
+
+            {/* Right - User Menu */}
+            <div className="flex items-center gap-3">
+              {/* Notifications */}
+              <button className="relative p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                <Bell className="w-5 h-5 text-gray-600" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
+
+              {/* User Profile Dropdown */}
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-3 pl-3 border-l border-gray-200 hover:bg-gray-50 rounded-lg py-1.5 pr-2 transition-colors"
+                >
+                  <div className="hidden sm:block text-right">
+                    <p className="text-sm font-semibold text-gray-900">{user?.name}</p>
+                    <p className="text-xs text-gray-500">{user?.department || user?.role}</p>
+                  </div>
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                      {getInitials(user?.name)}
+                    </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
+                    {/* User Info */}
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-sm font-semibold text-gray-900">{user?.name}</p>
+                      <p className="text-xs text-gray-500">{user?.email}</p>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          // TODO: Navigate to profile
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <User className="w-4 h-4 text-gray-400" />
+                        My Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          // TODO: Navigate to settings
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <Settings className="w-4 h-4 text-gray-400" />
+                        Settings
+                      </button>
+                    </div>
+
+                    {/* Logout */}
+                    <div className="border-t border-gray-100 pt-2">
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          logout();
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mx-4 lg:mx-8 mt-4">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">{error}</p>
+              </div>
+              <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+                <X className="w-5 h-5" />
               </button>
             </div>
           </div>
-        </div>
-      </header>
+        )}
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg border border-sky-100 p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">
-            Welcome, {user?.name}! 👋
-          </h2>
-          <p className="text-gray-600">
-            You have successfully logged in. This is your CRM dashboard.
-          </p>
-        </div>
-      </main>
+        {/* Page Content */}
+        <main className="p-4 lg:p-8">
+          <ContactGrid
+            contacts={contacts}
+            onContactSelect={setSelectedContact}
+            onEmailClick={handleEmailClick}
+            onFollowupsClick={handleFollowupsClick}
+            onAddContact={() => setShowAddModal(true)}
+            loading={loading}
+            activeStage={activeStage}
+          />
+        </main>
+      </div>
+
+      {/* Contact Detail Sidebar */}
+      {selectedContact && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setSelectedContact(null)}
+          />
+          <ContactDetail
+            contact={selectedContact}
+            onClose={() => setSelectedContact(null)}
+            onUpdate={handleUpdateContact}
+          />
+        </>
+      )}
+
+      {/* Add Contact Modal */}
+      <AddContactModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSubmit={handleAddContact}
+        loading={submitting}
+      />
     </div>
   );
 };

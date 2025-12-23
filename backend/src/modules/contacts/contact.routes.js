@@ -29,6 +29,13 @@ router.get(
   contactController.getContactById
 );
 
+// Update contact
+router.patch(
+  "/:id",
+  authenticateEmployee,
+  contactController.updateContact
+);
+
 /* ---------------------------------------------------
    AUTOMATED (SYSTEM) – LEAD → MQL
 --------------------------------------------------- */

@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS contacts (
         'EVANGELIST',
         'DORMANT'
     ) DEFAULT 'LEAD',
+    COLUMN temperature ENUM('HOT', 'WARM', 'COLD') DEFAULT 'COLD',
     source VARCHAR(255),
     interest_score INT DEFAULT 0,
     tracking_token VARCHAR(255),

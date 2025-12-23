@@ -7,10 +7,13 @@ import * as contactService from "./contact.service.js";
  */
 export const createContact = async (req, res, next) => {
   try {
-    // Add company_id from authenticated user if not provided
+    // Use static company_id = 1 for now (default company)
+    // In production, this should come from the authenticated user's company
+    const DEFAULT_COMPANY_ID = 1;
+    
     const data = {
       ...req.body,
-      company_id: req.body.company_id || req.user?.companyId,
+      company_id: req.body.company_id || req.user?.companyId || DEFAULT_COMPANY_ID,
       assigned_emp_id: req.body.assigned_emp_id || req.user?.empId,
     };
     
@@ -32,11 +35,9 @@ export const createContact = async (req, res, next) => {
 export const getContactsByStatus = async (req, res, next) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
-    const companyId = req.user?.companyId;
-
-    if (!companyId) {
-      return res.status(400).json({ message: "Company ID is required" });
-    }
+    // Use static company_id = 1 for now (default company)
+    const DEFAULT_COMPANY_ID = 1;
+    const companyId = req.user?.companyId || DEFAULT_COMPANY_ID;
 
     const contacts = await contactService.getContactsByStatus(
       companyId,
@@ -63,6 +64,20 @@ export const getContactById = async (req, res, next) => {
       return res.status(404).json({ message: "Contact not found" });
     }
     res.json(contact);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Update contact details
+ * @route  PATCH /contacts/:id
+ * @access Employee
+ */
+export const updateContact = async (req, res, next) => {
+  try {
+    await contactService.updateContact(req.params.id, req.body);
+    res.json({ message: "Contact updated successfully" });
   } catch (error) {
     next(error);
   }

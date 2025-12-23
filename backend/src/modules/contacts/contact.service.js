@@ -38,6 +38,13 @@ export const getContactById = async (id) => {
 };
 
 /* ---------------------------------------------------
+   UPDATE CONTACT
+--------------------------------------------------- */
+export const updateContact = async (contactId, updates) => {
+  return await contactRepo.updateContact(contactId, updates);
+};
+
+/* ---------------------------------------------------
    GET CONTACTS BY STATUS
 --------------------------------------------------- */
 export const getContactsByStatus = async (companyId, status, limit = 50, offset = 0) => {

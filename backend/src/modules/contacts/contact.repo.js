@@ -14,19 +14,21 @@ export const createContact = async (data) => {
       phone,
       job_title,
       status,
+      temperature,
       source,
       interest_score
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       data.company_id,
       data.assigned_emp_id || null,
       data.name,
       data.email,
-      data.phone,
-      data.job_title,
+      data.phone || null,
+      data.job_title || null,
       data.status,
+      data.temperature || 'COLD',
       data.source || null,
       data.interest_score || 0,
     ]
@@ -54,6 +56,58 @@ export const updateStatus = async (contactId, status) => {
   await db.query(
     `UPDATE contacts SET status = ? WHERE contact_id = ?`,
     [status, contactId]
+  );
+};
+
+/* ---------------------------------------------------
+   UPDATE CONTACT TEMPERATURE
+--------------------------------------------------- */
+export const updateTemperature = async (contactId, temperature) => {
+  await db.query(
+    `UPDATE contacts SET temperature = ? WHERE contact_id = ?`,
+    [temperature, contactId]
+  );
+};
+
+/* ---------------------------------------------------
+   UPDATE CONTACT DETAILS
+--------------------------------------------------- */
+export const updateContact = async (contactId, updates) => {
+  const fields = [];
+  const values = [];
+
+  if (updates.name) {
+    fields.push("name = ?");
+    values.push(updates.name);
+  }
+
+  if (updates.email) {
+    fields.push("email = ?");
+    values.push(updates.email);
+  }
+
+  if (updates.phone !== undefined) {
+    fields.push("phone = ?");
+    values.push(updates.phone);
+  }
+
+  if (updates.job_title !== undefined) {
+    fields.push("job_title = ?");
+    values.push(updates.job_title);
+  }
+
+  if (updates.temperature) {
+    fields.push("temperature = ?");
+    values.push(updates.temperature);
+  }
+
+  if (fields.length === 0) return;
+
+  values.push(contactId);
+
+  await db.query(
+    `UPDATE contacts SET ${fields.join(", ")} WHERE contact_id = ?`,
+    values
   );
 };
 
@@ -124,11 +178,15 @@ export const assignEmployee = async (contactId, empId) => {
 export const getByStatus = async (status, companyId) => {
   const [rows] = await db.query(
     `
-    SELECT *
-    FROM contacts
-    WHERE status = ?
-      AND company_id = ?
-    ORDER BY created_at DESC
+    SELECT 
+      c.*,
+      COALESCE(AVG(s.rating), 0) as average_rating
+    FROM contacts c
+    LEFT JOIN sessions s ON c.contact_id = s.contact_id
+    WHERE c.status = ?
+      AND c.company_id = ?
+    GROUP BY c.contact_id
+    ORDER BY c.created_at DESC
     `,
     [status, companyId]
   );
@@ -142,10 +200,14 @@ export const getByStatus = async (status, companyId) => {
 export const getAll = async (companyId, limit = 50, offset = 0) => {
   const [rows] = await db.query(
     `
-    SELECT *
-    FROM contacts
-    WHERE company_id = ?
-    ORDER BY created_at DESC
+    SELECT 
+      c.*,
+      COALESCE(AVG(s.rating), 0) as average_rating
+    FROM contacts c
+    LEFT JOIN sessions s ON c.contact_id = s.contact_id
+    WHERE c.company_id = ?
+    GROUP BY c.contact_id
+    ORDER BY c.created_at DESC
     LIMIT ? OFFSET ?
     `,
     [companyId, limit, offset]

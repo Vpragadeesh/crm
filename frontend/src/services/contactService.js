@@ -1,0 +1,57 @@
+import api from './api';
+
+/**
+ * Contact Service
+ * Handles all contact-related API calls
+ */
+
+// Get contacts by status and filters
+export const getContacts = async (filters = {}) => {
+  const params = new URLSearchParams();
+  
+  if (filters.status) params.append('status', filters.status);
+  if (filters.temperature) params.append('temperature', filters.temperature);
+  if (filters.limit) params.append('limit', filters.limit.toString());
+  if (filters.offset) params.append('offset', filters.offset.toString());
+  
+  const response = await api.get(`/contacts?${params.toString()}`);
+  return response.data;
+};
+
+// Get single contact by ID
+export const getContactById = async (contactId) => {
+  const response = await api.get(`/contacts/${contactId}`);
+  return response.data;
+};
+
+// Create new lead
+export const createContact = async (contactData) => {
+  const response = await api.post('/contacts', contactData);
+  return response.data;
+};
+
+// Update contact
+export const updateContact = async (contactId, updates) => {
+  const response = await api.patch(`/contacts/${contactId}`, updates);
+  return response.data;
+};
+
+// Promote MQL to SQL
+export const promoteToSQL = async (contactId) => {
+  const response = await api.patch(`/contacts/${contactId}/promote-sql`);
+  return response.data;
+};
+
+// Convert SQL to Opportunity
+export const convertToOpportunity = async (contactId, expectedValue) => {
+  const response = await api.post(`/contacts/${contactId}/opportunity`, {
+    expectedValue,
+  });
+  return response.data;
+};
+
+// Convert Customer to Evangelist
+export const convertToEvangelist = async (contactId) => {
+  const response = await api.post(`/contacts/${contactId}/evangelist`);
+  return response.data;
+};
