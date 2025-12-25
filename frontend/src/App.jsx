@@ -4,27 +4,37 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import SettingsPage from './pages/SettingsPage';
 
-// Protected Route Component
+// Loading Spinner Component
+const LoadingSpinner = () => (
+  <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 flex items-center justify-center">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+  </div>
+);
+
+// Protected Route Component (for employees only - admins go to admin dashboard)
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading, needsOnboarding } = useAuth();
+  const { isAuthenticated, loading, needsOnboarding, isAdmin } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  if (needsOnboarding) return <Navigate to="/onboarding" />;
+  // Redirect admins to their dashboard
+  if (isAdmin) return <Navigate to="/admin" />;
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
-  }
+  return children;
+};
 
-  if (needsOnboarding) {
-    return <Navigate to="/onboarding" />;
-  }
+// Admin Route Component - Only accessible by admins
+const AdminRoute = ({ children }) => {
+  const { isAuthenticated, loading, needsOnboarding, isAdmin } = useAuth();
+
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  if (needsOnboarding) return <Navigate to="/onboarding" />;
+  if (!isAdmin) return <Navigate to="/dashboard" />;
 
   return children;
 };
@@ -33,42 +43,23 @@ const ProtectedRoute = ({ children }) => {
 const OnboardingRoute = ({ children }) => {
   const { isAuthenticated, loading, needsOnboarding } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
-  }
-
-  if (!needsOnboarding) {
-    return <Navigate to="/dashboard" />;
-  }
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  if (!needsOnboarding) return <Navigate to="/dashboard" />;
 
   return children;
 };
 
 // Public Route Component (redirect if already logged in)
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, loading, needsOnboarding } = useAuth();
+  const { isAuthenticated, loading, needsOnboarding, isAdmin } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
 
   if (isAuthenticated) {
-    if (needsOnboarding) {
-      return <Navigate to="/onboarding" />;
-    }
-    return <Navigate to="/dashboard" />;
+    if (needsOnboarding) return <Navigate to="/onboarding" />;
+    // Admins go to admin dashboard, employees go to regular dashboard
+    return <Navigate to={isAdmin ? "/admin" : "/dashboard"} />;
   }
 
   return children;
@@ -104,6 +95,14 @@ function App() {
                 <ProtectedRoute>
                   <Dashboard />
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <AdminDashboard />
+                </AdminRoute>
               }
             />
             <Route

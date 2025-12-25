@@ -15,11 +15,13 @@ const EmployeeOnboardingForm = ({ initialData, onSubmit, loading = false }) => {
       phone: '',
       role: 'EMPLOYEE',
       department: '',
+      companyName: '',
     },
   });
 
   const [step, setStep] = useState(1);
   const totalSteps = 2;
+  const selectedRole = watch('role');
 
   const onFormSubmit = (data) => {
     onSubmit(data);
@@ -189,7 +191,32 @@ const EmployeeOnboardingForm = ({ initialData, onSubmit, loading = false }) => {
                 {errors.role && (
                   <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
                 )}
+                {selectedRole === 'ADMIN' && (
+                  <p className="mt-1 text-xs text-sky-600">As an Admin, you'll be able to manage your team and company.</p>
+                )}
               </div>
+
+              {/* Company Name Field - Only for Admins */}
+              {selectedRole === 'ADMIN' && (
+                <div>
+                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-2">
+                    Company Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="companyName"
+                    {...register('companyName', { 
+                      required: selectedRole === 'ADMIN' ? 'Company name is required for admins' : false,
+                      minLength: { value: 2, message: 'Company name must be at least 2 characters' }
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-colors bg-white/50"
+                    placeholder="Enter your company name"
+                  />
+                  {errors.companyName && (
+                    <p className="mt-1 text-sm text-red-600">{errors.companyName.message}</p>
+                  )}
+                </div>
+              )}
 
               {/* Department Field */}
               <div>

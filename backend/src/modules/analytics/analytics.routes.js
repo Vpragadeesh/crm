@@ -63,4 +63,64 @@ router.get(
   analyticsController.getPipelineFunnel
 );
 
+/* ---------------------------------------------------
+   ADMIN: GET TEAM MEMBERS
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/team-members
+ * @desc    Get all team members with their performance stats
+ * @access  Admin
+ */
+router.get(
+  "/team-members",
+  authenticateEmployee,
+  authorizeRoles(USER_ROLES.ADMIN),
+  analyticsController.getTeamMembers
+);
+
+/* ---------------------------------------------------
+   ADMIN: GET EMPLOYEE DETAILS
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/employee/:empId
+ * @desc    Get specific employee details
+ * @access  Admin
+ */
+router.get(
+  "/employee/:empId",
+  authenticateEmployee,
+  authorizeRoles(USER_ROLES.ADMIN),
+  analyticsController.getEmployeeById
+);
+
+/* ---------------------------------------------------
+   ADMIN: GET EMPLOYEE ACTIVITIES
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/employee/:empId/activities
+ * @desc    Get employee's recent activities (sessions)
+ * @access  Admin
+ */
+router.get(
+  "/employee/:empId/activities",
+  authenticateEmployee,
+  authorizeRoles(USER_ROLES.ADMIN),
+  analyticsController.getEmployeeActivities
+);
+
+/* ---------------------------------------------------
+   ADMIN: GET EMPLOYEE CONTACTS
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/employee/:empId/contacts
+ * @desc    Get employee's assigned contacts/leads
+ * @access  Admin
+ */
+router.get(
+  "/employee/:empId/contacts",
+  authenticateEmployee,
+  authorizeRoles(USER_ROLES.ADMIN),
+  analyticsController.getEmployeeContacts
+);
+
 export default router;

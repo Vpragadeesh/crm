@@ -95,3 +95,114 @@ export const getPipelineFunnel = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Get all team members with performance stats (Admin only)
+ * @route  GET /analytics/team-members
+ * @access Admin
+ */
+export const getTeamMembers = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getTeamMembers(companyId);
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get specific employee by ID (Admin only)
+ * @route  GET /analytics/employee/:empId
+ * @access Admin
+ */
+export const getEmployeeById = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const { empId } = req.params;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getEmployeeById(companyId, empId);
+
+    if (!data) {
+      return res.status(404).json({
+        message: "Employee not found",
+      });
+    }
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get employee's recent activities/sessions (Admin only)
+ * @route  GET /analytics/employee/:empId/activities
+ * @access Admin
+ */
+export const getEmployeeActivities = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const { empId } = req.params;
+    const { limit = 20 } = req.query;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getEmployeeActivities(
+      companyId,
+      empId,
+      parseInt(limit)
+    );
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get employee's assigned contacts/leads (Admin only)
+ * @route  GET /analytics/employee/:empId/contacts
+ * @access Admin
+ */
+export const getEmployeeContacts = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const { empId } = req.params;
+    const { status, search, page = 1, limit = 20 } = req.query;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getEmployeeContacts(
+      companyId,
+      empId,
+      { status, search, page: parseInt(page), limit: parseInt(limit) }
+    );
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};

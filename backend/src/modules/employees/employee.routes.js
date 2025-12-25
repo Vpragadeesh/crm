@@ -92,6 +92,21 @@ router.patch(
 );
 
 /* ---------------------------------------------------
+   UPDATE EMPLOYEE ROLE (ADMIN)
+--------------------------------------------------- */
+/**
+ * @route   PATCH /employees/:id/role
+ * @desc    Update employee role (promote/demote)
+ * @access  Admin
+ */
+router.patch(
+  "/:id/role",
+  authenticateEmployee,
+  authorizeRoles(USER_ROLES.ADMIN),
+  employeeController.updateEmployeeRole
+);
+
+/* ---------------------------------------------------
    DELETE EMPLOYEE
 --------------------------------------------------- */
 /**

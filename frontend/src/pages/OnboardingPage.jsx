@@ -8,7 +8,7 @@ const OnboardingPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { user, login } = useAuth();
+  const { user, login, isAdmin } = useAuth();
 
   const handleProfileSubmit = async (profileData) => {
     setLoading(true);
@@ -21,15 +21,22 @@ const OnboardingPage = () => {
       // Update the user context with complete profile
       const updatedUser = {
         ...user,
-        ...profileData,
+        ...response.user,
         profileComplete: true,
       };
       
-      // Update auth context with new user data
-      login(updatedUser, response.token || localStorage.getItem('token'));
+      // Use the new token from the response (contains updated companyId)
+      const newToken = response.token || localStorage.getItem('token');
       
-      // Navigate to dashboard
-      navigate('/dashboard');
+      // Update auth context with new user data and token
+      login(updatedUser, newToken);
+      
+      // Navigate based on role - admins go to admin dashboard
+      if (profileData.role === 'ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       console.error('Profile completion error:', err);
       setError(

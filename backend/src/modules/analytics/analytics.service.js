@@ -85,3 +85,31 @@ export const getPipelineFunnel = async (companyId) => {
     ],
   };
 };
+
+/* ---------------------------------------------------
+   ADMIN: GET TEAM MEMBERS
+--------------------------------------------------- */
+export const getTeamMembers = async (companyId) => {
+  return await analyticsRepo.getTeamMembers(companyId);
+};
+
+/* ---------------------------------------------------
+   ADMIN: GET EMPLOYEE BY ID
+--------------------------------------------------- */
+export const getEmployeeById = async (companyId, empId) => {
+  return await analyticsRepo.getEmployeeById(companyId, empId);
+};
+
+/* ---------------------------------------------------
+   ADMIN: GET EMPLOYEE ACTIVITIES
+--------------------------------------------------- */
+export const getEmployeeActivities = async (companyId, empId, limit) => {
+  return await analyticsRepo.getEmployeeActivities(companyId, empId, limit);
+};
+
+/* ---------------------------------------------------
+   ADMIN: GET EMPLOYEE CONTACTS
+--------------------------------------------------- */
+export const getEmployeeContacts = async (companyId, empId, filters) => {
+  return await analyticsRepo.getEmployeeContacts(companyId, empId, filters);
+};

@@ -36,6 +36,10 @@ export const AuthProvider = ({ children }) => {
   // Check if user needs to complete onboarding
   const needsOnboarding = user && (!user.phone || !user.department);
 
+  // Role-based helpers
+  const isAdmin = user?.role === 'ADMIN';
+  const isEmployee = user?.role === 'EMPLOYEE';
+
   const value = {
     user,
     token,
@@ -44,6 +48,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     needsOnboarding,
     isAuthenticated: !!token,
+    isAdmin,
+    isEmployee,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
