@@ -1,18 +1,86 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { AppLayout } from '../components/layout';
 import { Button } from '../components/ui';
+import { getConnectionStatus, getConnectUrl, disconnectEmail } from '../services/emailService';
+import { Mail, Check, X, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
 
 const SettingsPage = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
+  const [emailConnected, setEmailConnected] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(true);
+  const [emailError, setEmailError] = useState(null);
+  const [connectingEmail, setConnectingEmail] = useState(false);
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: '👤' },
+    { id: 'integrations', label: 'Integrations', icon: '🔗' },
     { id: 'notifications', label: 'Notifications', icon: '🔔' },
     { id: 'security', label: 'Security', icon: '🔒' },
     { id: 'preferences', label: 'Preferences', icon: '⚙️' },
   ];
+
+  // Check for OAuth callback params in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('email_connected') === 'true') {
+      setEmailConnected(true);
+      setActiveTab('integrations');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('email_error')) {
+      setEmailError('Failed to connect Gmail account. Please try again.');
+      setActiveTab('integrations');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  // Check email connection status on mount
+  useEffect(() => {
+    checkEmailStatus();
+  }, []);
+
+  const checkEmailStatus = async () => {
+    try {
+      setEmailLoading(true);
+      const status = await getConnectionStatus();
+      setEmailConnected(status.connected);
+    } catch (error) {
+      console.error('Failed to check email status:', error);
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleConnectEmail = async () => {
+    try {
+      setConnectingEmail(true);
+      setEmailError(null);
+      const { authUrl } = await getConnectUrl();
+      // Redirect to Google OAuth
+      window.location.href = authUrl;
+    } catch (error) {
+      setEmailError('Failed to initiate connection. Please try again.');
+      setConnectingEmail(false);
+    }
+  };
+
+  const handleDisconnectEmail = async () => {
+    if (!confirm('Are you sure you want to disconnect your Gmail account? You will not be able to send emails until you reconnect.')) {
+      return;
+    }
+    
+    try {
+      setEmailLoading(true);
+      await disconnectEmail();
+      setEmailConnected(false);
+    } catch (error) {
+      setEmailError('Failed to disconnect. Please try again.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -133,6 +201,119 @@ const SettingsPage = () => {
                         <p className="text-sm text-gray-600">Notifications for deal milestones</p>
                       </div>
                       <input type="checkbox" className="rounded" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'integrations' && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-gray-800">Integrations</h2>
+                  <p className="text-gray-600">Connect your accounts to enable additional features</p>
+                  
+                  {emailError && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-red-800">{emailError}</p>
+                      </div>
+                      <button onClick={() => setEmailError(null)} className="text-red-500 hover:text-red-700">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Gmail Integration Card */}
+                  <div className="border border-gray-200 rounded-xl p-5 hover:border-sky-200 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+                          <Mail className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Gmail</h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Send emails to contacts directly from your Gmail account
+                          </p>
+                          {emailConnected && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                              <span className="text-sm text-green-600">Connected as {user?.email}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        {emailLoading ? (
+                          <div className="flex items-center gap-2 text-gray-500">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-sm">Checking...</span>
+                          </div>
+                        ) : emailConnected ? (
+                          <button
+                            onClick={handleDisconnectEmail}
+                            className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            Disconnect
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleConnectEmail}
+                            disabled={connectingEmail}
+                            className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-sky-500 to-blue-600 rounded-lg hover:from-sky-600 hover:to-blue-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {connectingEmail ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Connecting...
+                              </>
+                            ) : (
+                              <>
+                                Connect
+                                <ExternalLink className="w-4 h-4" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {!emailConnected && !emailLoading && (
+                      <div className="mt-4 p-4 bg-sky-50 rounded-lg">
+                        <h4 className="text-sm font-medium text-sky-800 mb-2">Why connect Gmail?</h4>
+                        <ul className="text-sm text-sky-700 space-y-1">
+                          <li className="flex items-center gap-2">
+                            <Check className="w-4 h-4" />
+                            Send emails to contacts directly from CRM
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <Check className="w-4 h-4" />
+                            Emails appear from your own address
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <Check className="w-4 h-4" />
+                            Track email opens and clicks
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <Check className="w-4 h-4" />
+                            Keep email history with contacts
+                          </li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Future Integrations */}
+                  <div className="border border-dashed border-gray-200 rounded-xl p-5 opacity-60">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
+                        <span className="text-2xl">📅</span>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-500">Google Calendar</h3>
+                        <p className="text-sm text-gray-400">Coming soon - Sync meetings and events</p>
+                      </div>
                     </div>
                   </div>
                 </div>
