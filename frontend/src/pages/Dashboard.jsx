@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ContactGrid, ContactDetail, AddContactModal } from '../components/contacts';
-import { FollowupsModal, AddSessionModal, TakeActionModal } from '../components/sessions';
+import { AddSessionModal, TakeActionModal } from '../components/sessions';
 import EmailComposer from '../components/email/EmailComposer';
 import Sidebar from '../components/layout/Sidebar';
 import Profile from '../components/layout/Profile';
@@ -28,7 +29,6 @@ const Dashboard = () => {
   const userMenuRef = useRef(null);
 
   // Session/Followup modals
-  const [followupsContact, setFollowupsContact] = useState(null);
   const [addSessionContact, setAddSessionContact] = useState(null);
   const [takeActionData, setTakeActionData] = useState(null);
   
@@ -106,8 +106,10 @@ const Dashboard = () => {
     setEmailContact(contact);
   };
 
+  const navigate = useNavigate();
+
   const handleFollowupsClick = (contact) => {
-    setFollowupsContact(contact);
+    navigate(`/followups/${contact.contact_id}`, { state: { contact } });
   };
 
   const handleAddSession = (contact) => {
@@ -121,11 +123,7 @@ const Dashboard = () => {
       await createSession(sessionData);
       await fetchContacts(); // Refresh to get updated temperature
       setAddSessionContact(null);
-      // Refresh followups modal if open
-      if (followupsContact && followupsContact.contact_id === sessionData.contact_id) {
-        // Force re-render by creating new object reference
-        setFollowupsContact({ ...followupsContact });
-      }
+      // navigation-based followups page will handle refresh when opened
     } catch (error) {
       console.error('Error creating session:', error);
       setError(error.response?.data?.message || 'Failed to create session. Please try again.');
@@ -153,7 +151,6 @@ const Dashboard = () => {
       
       await fetchContacts();
       setTakeActionData(null);
-      setFollowupsContact(null);
     } catch (error) {
       console.error('Error promoting contact:', error);
       setError(error.response?.data?.message || 'Failed to promote contact. Please try again.');
@@ -346,13 +343,7 @@ const Dashboard = () => {
       />
 
       {/* Followups Modal */}
-      <FollowupsModal
-        isOpen={!!followupsContact}
-        contact={followupsContact}
-        onClose={() => setFollowupsContact(null)}
-        onAddSession={handleAddSession}
-        onTakeAction={handleTakeAction}
-      />
+      {/* Followups moved to a dedicated page: /followups/:contactId */}
 
       {/* Add Session Modal */}
       <AddSessionModal

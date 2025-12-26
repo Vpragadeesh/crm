@@ -6,6 +6,7 @@ import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import SettingsPage from './pages/SettingsPage';
+import FollowupsPage from './pages/FollowupsPage';
 
 // Loading Spinner Component
 const LoadingSpinner = () => (
@@ -110,6 +111,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/followups/:contactId"
+              element={
+                <ProtectedRoute>
+                  <FollowupsPage />
                 </ProtectedRoute>
               }
             />
