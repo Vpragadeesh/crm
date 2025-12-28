@@ -8,7 +8,7 @@ import {
   Flame, Thermometer, BarChart3, CheckCircle2, XCircle, AlertCircle
 } from 'lucide-react';
 import { getSessionsByContact, createSession } from '../services/sessionService';
-import { getContactById, promoteToMQL, promoteToSQL, convertToOpportunity } from '../services/contactService';
+import { getContactById, promoteToMQL, promoteToSQL, convertToOpportunity, closeDeal, convertToEvangelist } from '../services/contactService';
 import { AddSessionModal, TakeActionModal } from '../components/sessions';
 import { TaskModal } from '../components/calendar';
 import { createTask, getTasksByContact } from '../services/taskService';
@@ -121,6 +121,10 @@ const FollowupsPage = () => {
         await promoteToSQL(contact.contact_id);
       } else if (targetStatus === 'OPPORTUNITY') {
         await convertToOpportunity(contact.contact_id, expectedValue);
+      } else if (targetStatus === 'CUSTOMER') {
+        await closeDeal(contact.contact_id, expectedValue);
+      } else if (targetStatus === 'EVANGELIST') {
+        await convertToEvangelist(contact.contact_id);
       }
 
       // Refresh contact data after promotion
@@ -822,17 +826,6 @@ const FollowupsPage = () => {
                   <p className="text-sm font-medium text-gray-900">{contact.phone}</p>
                 </div>
               </a>
-            )}
-            {contact?.source && (
-              <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <Globe className="w-4 h-4 text-orange-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500">Lead Source</p>
-                  <p className="text-sm font-medium text-gray-900">{contact.source}</p>
-                </div>
-              </div>
             )}
           </div>
         </div>
