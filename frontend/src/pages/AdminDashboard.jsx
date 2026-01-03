@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -9,6 +9,7 @@ import {
   Eye,
   Search,
   ChevronDown,
+  ChevronUp,
   Phone,
   Mail,
   Star,
@@ -34,7 +35,8 @@ import {
   Thermometer,
   Snowflake,
   ArrowRight,
-  Calendar
+  Calendar,
+  ArrowUpDown
 } from 'lucide-react';
 import { 
   getTeamMembers, 
@@ -77,6 +79,10 @@ const AdminDashboard = () => {
   const [filterContactStatus, setFilterContactStatus] = useState('all');
   const [filterTemperature, setFilterTemperature] = useState('all');
   const [filterAssignedEmp, setFilterAssignedEmp] = useState('all');
+  
+  // Sorting states
+  const [employeeSort, setEmployeeSort] = useState({ column: 'name', direction: 'asc' });
+  const [contactSort, setContactSort] = useState({ column: 'created_at', direction: 'desc' });
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -272,14 +278,110 @@ const AdminDashboard = () => {
   // Get unique departments for filter
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
 
-  // Filter employees
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          emp.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDept = filterDepartment === 'all' || emp.department === filterDepartment;
-    const matchesStatus = filterStatus === 'all' || emp.invitation_status === filterStatus;
-    return matchesSearch && matchesDept && matchesStatus;
-  });
+  // Optimized sorting handler using useCallback
+  const handleEmployeeSort = useCallback((column) => {
+    setEmployeeSort(prev => ({
+      column,
+      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  }, []);
+
+  const handleContactSort = useCallback((column) => {
+    setContactSort(prev => ({
+      column,
+      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  }, []);
+
+  // Generic comparator function for optimal sorting
+  const compareValues = useCallback((a, b, column, direction) => {
+    let aVal = a[column];
+    let bVal = b[column];
+    
+    // Handle null/undefined
+    if (aVal == null) aVal = '';
+    if (bVal == null) bVal = '';
+    
+    // Handle numeric columns
+    const numericColumns = ['contactsHandled', 'dealsClosed', 'totalRevenue', 'total_sessions', 'interest_score', 'average_rating'];
+    if (numericColumns.includes(column)) {
+      aVal = parseFloat(aVal) || 0;
+      bVal = parseFloat(bVal) || 0;
+    }
+    
+    // Handle date columns
+    const dateColumns = ['created_at', 'last_contacted', 'updated_at'];
+    if (dateColumns.includes(column)) {
+      aVal = aVal ? new Date(aVal).getTime() : 0;
+      bVal = bVal ? new Date(bVal).getTime() : 0;
+    }
+    
+    // Handle string columns (case-insensitive)
+    if (typeof aVal === 'string') {
+      aVal = aVal.toLowerCase();
+      bVal = (bVal || '').toLowerCase();
+    }
+    
+    // Temperature priority order
+    if (column === 'temperature') {
+      const tempOrder = { HOT: 3, WARM: 2, COLD: 1 };
+      aVal = tempOrder[aVal?.toUpperCase()] || 0;
+      bVal = tempOrder[bVal?.toUpperCase()] || 0;
+    }
+    
+    // Status priority order
+    if (column === 'status') {
+      const statusOrder = { EVANGELIST: 6, CUSTOMER: 5, OPPORTUNITY: 4, SQL: 3, MQL: 2, LEAD: 1 };
+      aVal = statusOrder[aVal?.toUpperCase()] || 0;
+      bVal = statusOrder[bVal?.toUpperCase()] || 0;
+    }
+    
+    // Compare
+    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+    return 0;
+  }, []);
+
+  // Memoized filtered and sorted employees - O(n log n) sorting
+  const filteredSortedEmployees = useMemo(() => {
+    const filtered = employees.filter(emp => {
+      const matchesSearch = emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            emp.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesDept = filterDepartment === 'all' || emp.department === filterDepartment;
+      const matchesStatus = filterStatus === 'all' || emp.invitation_status === filterStatus;
+      return matchesSearch && matchesDept && matchesStatus;
+    });
+    
+    return [...filtered].sort((a, b) => 
+      compareValues(a, b, employeeSort.column, employeeSort.direction)
+    );
+  }, [employees, searchQuery, filterDepartment, filterStatus, employeeSort, compareValues]);
+
+  // Memoized filtered and sorted contacts - O(n log n) sorting
+  const filteredSortedContacts = useMemo(() => {
+    const filtered = contacts.filter(contact => {
+      const matchesSearch = contact.name?.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
+                            contact.email?.toLowerCase().includes(contactSearchQuery.toLowerCase());
+      const matchesStatus = filterContactStatus === 'all' || contact.status === filterContactStatus;
+      const matchesTemp = filterTemperature === 'all' || contact.temperature === filterTemperature;
+      const matchesEmp = filterAssignedEmp === 'all' || contact.assigned_emp_id === parseInt(filterAssignedEmp);
+      return matchesSearch && matchesStatus && matchesTemp && matchesEmp;
+    });
+    
+    return [...filtered].sort((a, b) => 
+      compareValues(a, b, contactSort.column, contactSort.direction)
+    );
+  }, [contacts, contactSearchQuery, filterContactStatus, filterTemperature, filterAssignedEmp, contactSort, compareValues]);
+
+  // Sort icon component
+  const SortIcon = ({ column, currentSort }) => {
+    if (currentSort.column !== column) {
+      return <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
+    }
+    return currentSort.direction === 'asc' 
+      ? <ChevronUp className="w-3.5 h-3.5 text-sky-500" />
+      : <ChevronDown className="w-3.5 h-3.5 text-sky-500" />;
+  };
 
   // Calculate invitation stats first (needed for other calculations)
   const invitedCount = employees.filter(e => e.invitation_status === 'INVITED').length;
@@ -296,16 +398,6 @@ const AdminDashboard = () => {
   
   // Calculate average leads per active employee
   const avgLeadsPerEmployee = activeCount > 0 ? Math.round(totalLeads / activeCount) : 0;
-
-  // Filter contacts
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = contact.name?.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
-                          contact.email?.toLowerCase().includes(contactSearchQuery.toLowerCase());
-    const matchesStatus = filterContactStatus === 'all' || contact.status === filterContactStatus;
-    const matchesTemp = filterTemperature === 'all' || contact.temperature === filterTemperature;
-    const matchesEmp = filterAssignedEmp === 'all' || contact.assigned_emp_id === parseInt(filterAssignedEmp);
-    return matchesSearch && matchesStatus && matchesTemp && matchesEmp;
-  });
 
   // Contact status options
   const contactStatuses = ['LEAD', 'MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER', 'EVANGELIST'];
@@ -635,7 +727,7 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
               </div>
-            ) : filteredEmployees.length === 0 ? (
+            ) : filteredSortedEmployees.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500">No employees found</p>
@@ -651,17 +743,65 @@ const AdminDashboard = () => {
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
-                    <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Leads</th>
-                    <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Deals</th>
-                    <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Revenue</th>
+                    <th 
+                      onClick={() => handleEmployeeSort('name')}
+                      className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        Employee
+                        <SortIcon column="name" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('invitation_status')}
+                      className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        Status
+                        <SortIcon column="invitation_status" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('department')}
+                      className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        Department
+                        <SortIcon column="department" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('contactsHandled')}
+                      className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        Leads
+                        <SortIcon column="contactsHandled" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('dealsClosed')}
+                      className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        Deals
+                        <SortIcon column="dealsClosed" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('totalRevenue')}
+                      className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        Revenue
+                        <SortIcon column="totalRevenue" currentSort={employeeSort} />
+                      </div>
+                    </th>
                     <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredEmployees.map((employee) => (
+                  {filteredSortedEmployees.map((employee) => (
                     <tr key={employee.emp_id} className={`hover:bg-gray-50 transition-colors ${employee.invitation_status === 'DISABLED' ? 'opacity-60' : ''}`}>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
@@ -907,7 +1047,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
                   </div>
-                ) : filteredContacts.length === 0 ? (
+                ) : filteredSortedContacts.length === 0 ? (
                   <div className="text-center py-12">
                     <Contact className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500">No contacts found</p>
@@ -916,17 +1056,65 @@ const AdminDashboard = () => {
                   <table className="w-full">
                     <thead>
                       <tr className="bg-gray-50">
-                        <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                        <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Temp</th>
-                        <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned To</th>
-                        <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sessions</th>
-                        <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Contact</th>
+                        <th 
+                          onClick={() => handleContactSort('name')}
+                          className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            Contact
+                            <SortIcon column="name" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('status')}
+                          className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            Status
+                            <SortIcon column="status" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('temperature')}
+                          className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center justify-center gap-1.5">
+                            Temp
+                            <SortIcon column="temperature" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('assigned_emp_name')}
+                          className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            Assigned To
+                            <SortIcon column="assigned_emp_name" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('total_sessions')}
+                          className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center justify-center gap-1.5">
+                            Sessions
+                            <SortIcon column="total_sessions" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('last_contacted')}
+                          className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            Last Contact
+                            <SortIcon column="last_contacted" currentSort={contactSort} />
+                          </div>
+                        </th>
                         <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredContacts.map((contact) => (
+                      {filteredSortedContacts.map((contact) => (
                         <tr key={contact.contact_id} className="hover:bg-gray-50 transition-colors">
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-3">
