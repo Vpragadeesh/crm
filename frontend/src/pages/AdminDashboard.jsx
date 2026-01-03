@@ -62,9 +62,10 @@ import {
   resendInvitation,
   toggleEmployeeStatus
 } from '../services/employeeService';
-import { getAllContactsAdmin } from '../services/contactService';
+import { getAllContactsAdmin, updateContact } from '../services/contactService';
 import { getAdminAnalytics } from '../services/analyticsService';
 import { ContactDetail } from '../components/contacts';
+import EmailComposer from '../components/email/EmailComposer';
 import Profile from '../components/layout/Profile';
 
 const AdminDashboard = () => {
@@ -113,6 +114,7 @@ const AdminDashboard = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [emailContact, setEmailContact] = useState(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(null);
   const [inviteLoading, setInviteLoading] = useState(null); // Track which employee is being invited
   
@@ -225,6 +227,19 @@ const AdminDashboard = () => {
 
   const handleFollowupsClick = (contact) => {
     navigate(`/followups/${contact.contact_id}`);
+  };
+
+  const handleUpdateContact = async (contactId, updates) => {
+    try {
+      await updateContact(contactId, updates);
+      await fetchContacts();
+      if (selectedContact && selectedContact.contact_id === contactId) {
+        setSelectedContact({ ...selectedContact, ...updates });
+      }
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      alert(error.response?.data?.message || 'Failed to update contact. Please try again.');
+    }
   };
 
   // Validate add employee form
@@ -2478,14 +2493,22 @@ const AdminDashboard = () => {
           <ContactDetail
             contact={selectedContact}
             onClose={() => setSelectedContact(null)}
-            onUpdate={() => {
-              fetchContacts();
-              setSelectedContact(null);
-            }}
+            onUpdate={handleUpdateContact}
             onFollowupsClick={handleFollowupsClick}
+            onEmailClick={(contact) => setEmailContact(contact)}
           />
         </>
       )}
+
+      {/* Email Compose Modal */}
+      <EmailComposer
+        isOpen={!!emailContact}
+        contact={emailContact}
+        onClose={() => setEmailContact(null)}
+        onSuccess={() => {
+          fetchContacts();
+        }}
+      />
 
       {/* CSS Animation */}
       <style>{`
