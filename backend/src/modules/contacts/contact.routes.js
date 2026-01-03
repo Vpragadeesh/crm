@@ -1,8 +1,21 @@
 import { Router } from "express";
 import * as contactController from "./contact.controller.js";
 import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
+import { requireAdmin } from "../../middlewares/role.middleware.js";
 
 const router = Router();
+
+/* ---------------------------------------------------
+   ADMIN ROUTES (Place before :id routes)
+--------------------------------------------------- */
+
+// Get all contacts with employee info (Admin only)
+router.get(
+  "/admin/all",
+  authenticateEmployee,
+  requireAdmin,
+  contactController.getAllContactsAdmin
+);
 
 /* ---------------------------------------------------
    LEAD CREATION & VIEW

@@ -215,3 +215,32 @@ export const convertToEvangelist = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Get all contacts with employee info (Admin)
+ * @route  GET /contacts/admin/all
+ * @access Admin
+ */
+export const getAllContactsAdmin = async (req, res, next) => {
+  try {
+    const { status, temperature, assignedEmpId, search, limit = 100, offset = 0 } = req.query;
+    const DEFAULT_COMPANY_ID = 1;
+    const companyId = req.user?.companyId || DEFAULT_COMPANY_ID;
+
+    const contacts = await contactService.getAllContactsWithEmployeeInfo(
+      companyId,
+      {
+        status,
+        temperature,
+        assignedEmpId: assignedEmpId ? parseInt(assignedEmpId) : null,
+        search,
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+      }
+    );
+    
+    res.json(contacts);
+  } catch (error) {
+    next(error);
+  }
+};

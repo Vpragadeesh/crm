@@ -217,6 +217,59 @@ export const getAll = async (companyId, limit = 50, offset = 0) => {
 };
 
 /* ---------------------------------------------------
+   GET ALL CONTACTS WITH EMPLOYEE INFO (ADMIN)
+--------------------------------------------------- */
+export const getAllWithEmployeeInfo = async (companyId, filters = {}) => {
+  let query = `
+    SELECT 
+      c.*,
+      e.name as assigned_emp_name,
+      e.email as assigned_emp_email,
+      COALESCE(AVG(s.rating), 0) as average_rating,
+      COUNT(DISTINCT s.session_id) as total_sessions,
+      MAX(s.created_at) as last_contacted
+    FROM contacts c
+    LEFT JOIN employees e ON c.assigned_emp_id = e.emp_id
+    LEFT JOIN sessions s ON c.contact_id = s.contact_id
+    WHERE c.company_id = ?
+  `;
+  
+  const params = [companyId];
+  
+  if (filters.status) {
+    query += ` AND c.status = ?`;
+    params.push(filters.status);
+  }
+  
+  if (filters.temperature) {
+    query += ` AND c.temperature = ?`;
+    params.push(filters.temperature);
+  }
+  
+  if (filters.assignedEmpId) {
+    query += ` AND c.assigned_emp_id = ?`;
+    params.push(filters.assignedEmpId);
+  }
+  
+  if (filters.search) {
+    query += ` AND (c.name LIKE ? OR c.email LIKE ?)`;
+    const searchTerm = `%${filters.search}%`;
+    params.push(searchTerm, searchTerm);
+  }
+  
+  query += `
+    GROUP BY c.contact_id
+    ORDER BY c.created_at DESC
+    LIMIT ? OFFSET ?
+  `;
+  
+  params.push(filters.limit || 100, filters.offset || 0);
+  
+  const [rows] = await db.query(query, params);
+  return rows;
+};
+
+/* ---------------------------------------------------
    DELETE CONTACT (OPTIONAL / ADMIN)
 --------------------------------------------------- */
 export const deleteContact = async (contactId) => {

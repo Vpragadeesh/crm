@@ -15,6 +15,18 @@ const LoadingSpinner = () => (
   </div>
 );
 
+// Authenticated Route Component - Accessible by both employees AND admins
+// Use this for shared pages like Settings, Followups, etc.
+const AuthenticatedRoute = ({ children }) => {
+  const { isAuthenticated, loading, needsOnboarding } = useAuth();
+
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  if (needsOnboarding) return <Navigate to="/onboarding" />;
+
+  return children;
+};
+
 // Protected Route Component (for employees only - admins go to admin dashboard)
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading, needsOnboarding, isAdmin } = useAuth();
@@ -109,17 +121,17 @@ function App() {
             <Route
               path="/settings"
               element={
-                <ProtectedRoute>
+                <AuthenticatedRoute>
                   <SettingsPage />
-                </ProtectedRoute>
+                </AuthenticatedRoute>
               }
             />
             <Route
               path="/followups/:contactId"
               element={
-                <ProtectedRoute>
+                <AuthenticatedRoute>
                   <FollowupsPage />
-                </ProtectedRoute>
+                </AuthenticatedRoute>
               }
             />
             <Route path="/" element={<Navigate to="/login" />} />

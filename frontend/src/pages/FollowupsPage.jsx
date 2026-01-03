@@ -17,7 +17,10 @@ const FollowupsPage = () => {
   const { contactId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { } = useAuth();
+  const { isAdmin } = useAuth();
+  
+  // Dynamic back navigation based on user role
+  const backPath = isAdmin ? '/admin' : '/dashboard';
   
   // Get contact from navigation state or fetch it
   const [contact, setContact] = useState(location.state?.contact || null);
@@ -368,10 +371,10 @@ const FollowupsPage = () => {
           <h2 className="text-xl font-bold text-gray-900 mb-2">Error Loading Contact</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(backPath)}
             className="px-6 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors"
           >
-            Back to Dashboard
+            Back to {isAdmin ? 'Admin Dashboard' : 'Dashboard'}
           </button>
         </div>
       </div>
@@ -389,8 +392,9 @@ const FollowupsPage = () => {
               {/* Left: Back button and contact info */}
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => navigate('/dashboard')}
+                  onClick={() => navigate(backPath)}
                   className="p-2 hover:bg-gray-100 rounded-xl transition-colors group"
+                  title={`Back to ${isAdmin ? 'Admin Dashboard' : 'Dashboard'}`}
                 >
                   <ArrowLeft className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
                 </button>

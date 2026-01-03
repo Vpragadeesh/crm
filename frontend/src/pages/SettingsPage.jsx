@@ -20,13 +20,17 @@ import {
 
 const SettingsPage = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [emailConnected, setEmailConnected] = useState(false);
   const [emailLoading, setEmailLoading] = useState(true);
   const [emailError, setEmailError] = useState(null);
   const [connectingEmail, setConnectingEmail] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
+  
+  // Dynamic back navigation based on user role
+  const backPath = isAdmin ? '/admin' : '/dashboard';
+  const backLabel = isAdmin ? 'Admin Dashboard' : 'Dashboard';
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User, description: 'Your personal information' },
@@ -115,11 +119,11 @@ const SettingsPage = () => {
         {/* Sidebar Header */}
         <div className="p-4 border-b border-gray-100">
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(backPath)}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors w-full"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">Back to Dashboard</span>
+            <span className="font-medium">Back to {backLabel}</span>
           </button>
         </div>
 

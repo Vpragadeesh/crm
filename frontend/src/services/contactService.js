@@ -18,6 +18,21 @@ export const getContacts = async (filters = {}) => {
   return response.data;
 };
 
+// Get all contacts with employee info (Admin)
+export const getAllContactsAdmin = async (filters = {}) => {
+  const params = new URLSearchParams();
+  
+  if (filters.status) params.append('status', filters.status);
+  if (filters.temperature) params.append('temperature', filters.temperature);
+  if (filters.assignedEmpId) params.append('assignedEmpId', filters.assignedEmpId.toString());
+  if (filters.search) params.append('search', filters.search);
+  if (filters.limit) params.append('limit', filters.limit.toString());
+  if (filters.offset) params.append('offset', filters.offset.toString());
+  
+  const response = await api.get(`/contacts/admin/all?${params.toString()}`);
+  return response.data;
+};
+
 // Get single contact by ID
 export const getContactById = async (contactId) => {
   const response = await api.get(`/contacts/${contactId}`);

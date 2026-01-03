@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Users, 
@@ -8,6 +9,7 @@ import {
   Eye,
   Search,
   ChevronDown,
+  ChevronUp,
   Phone,
   Mail,
   Star,
@@ -27,7 +29,14 @@ import {
   Ban,
   RefreshCw,
   UserCheck,
-  UserX
+  UserX,
+  Contact,
+  Flame,
+  Thermometer,
+  Snowflake,
+  ArrowRight,
+  Calendar,
+  ArrowUpDown
 } from 'lucide-react';
 import { 
   getTeamMembers, 
@@ -39,10 +48,18 @@ import {
   resendInvitation,
   toggleEmployeeStatus
 } from '../services/employeeService';
+import { getAllContactsAdmin } from '../services/contactService';
+import { ContactDetail } from '../components/contacts';
 import Profile from '../components/layout/Profile';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState('team'); // 'team' or 'contacts'
+  
+  // Employee states
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeActivities, setEmployeeActivities] = useState([]);
@@ -53,6 +70,19 @@ const AdminDashboard = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
+  
+  // Contact states
+  const [contacts, setContacts] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
+  const [filterContactStatus, setFilterContactStatus] = useState('all');
+  const [filterTemperature, setFilterTemperature] = useState('all');
+  const [filterAssignedEmp, setFilterAssignedEmp] = useState('all');
+  
+  // Sorting states
+  const [employeeSort, setEmployeeSort] = useState({ column: 'name', direction: 'asc' });
+  const [contactSort, setContactSort] = useState({ column: 'created_at', direction: 'desc' });
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -83,6 +113,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchEmployees();
+    fetchContacts();
   }, []);
 
   // Close action menu when clicking outside
@@ -118,6 +149,18 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchContacts = async () => {
+    try {
+      setContactsLoading(true);
+      const data = await getAllContactsAdmin({ limit: 200 });
+      setContacts(data || []);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    } finally {
+      setContactsLoading(false);
+    }
+  };
+
   const handleViewEmployee = (employee) => {
     setSelectedEmployee(employee);
     fetchEmployeeActivities(employee.emp_id);
@@ -126,6 +169,14 @@ const AdminDashboard = () => {
   const closeEmployeePanel = () => {
     setSelectedEmployee(null);
     setEmployeeActivities([]);
+  };
+
+  const handleViewContact = (contact) => {
+    setSelectedContact(contact);
+  };
+
+  const handleFollowupsClick = (contact) => {
+    navigate(`/followups/${contact.contact_id}`);
   };
 
   // Validate add employee form
@@ -227,14 +278,110 @@ const AdminDashboard = () => {
   // Get unique departments for filter
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
 
-  // Filter employees
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          emp.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDept = filterDepartment === 'all' || emp.department === filterDepartment;
-    const matchesStatus = filterStatus === 'all' || emp.invitation_status === filterStatus;
-    return matchesSearch && matchesDept && matchesStatus;
-  });
+  // Optimized sorting handler using useCallback
+  const handleEmployeeSort = useCallback((column) => {
+    setEmployeeSort(prev => ({
+      column,
+      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  }, []);
+
+  const handleContactSort = useCallback((column) => {
+    setContactSort(prev => ({
+      column,
+      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  }, []);
+
+  // Generic comparator function for optimal sorting
+  const compareValues = useCallback((a, b, column, direction) => {
+    let aVal = a[column];
+    let bVal = b[column];
+    
+    // Handle null/undefined
+    if (aVal == null) aVal = '';
+    if (bVal == null) bVal = '';
+    
+    // Handle numeric columns
+    const numericColumns = ['contactsHandled', 'dealsClosed', 'totalRevenue', 'total_sessions', 'interest_score', 'average_rating'];
+    if (numericColumns.includes(column)) {
+      aVal = parseFloat(aVal) || 0;
+      bVal = parseFloat(bVal) || 0;
+    }
+    
+    // Handle date columns
+    const dateColumns = ['created_at', 'last_contacted', 'updated_at'];
+    if (dateColumns.includes(column)) {
+      aVal = aVal ? new Date(aVal).getTime() : 0;
+      bVal = bVal ? new Date(bVal).getTime() : 0;
+    }
+    
+    // Handle string columns (case-insensitive)
+    if (typeof aVal === 'string') {
+      aVal = aVal.toLowerCase();
+      bVal = (bVal || '').toLowerCase();
+    }
+    
+    // Temperature priority order
+    if (column === 'temperature') {
+      const tempOrder = { HOT: 3, WARM: 2, COLD: 1 };
+      aVal = tempOrder[aVal?.toUpperCase()] || 0;
+      bVal = tempOrder[bVal?.toUpperCase()] || 0;
+    }
+    
+    // Status priority order
+    if (column === 'status') {
+      const statusOrder = { EVANGELIST: 6, CUSTOMER: 5, OPPORTUNITY: 4, SQL: 3, MQL: 2, LEAD: 1 };
+      aVal = statusOrder[aVal?.toUpperCase()] || 0;
+      bVal = statusOrder[bVal?.toUpperCase()] || 0;
+    }
+    
+    // Compare
+    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+    return 0;
+  }, []);
+
+  // Memoized filtered and sorted employees - O(n log n) sorting
+  const filteredSortedEmployees = useMemo(() => {
+    const filtered = employees.filter(emp => {
+      const matchesSearch = emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            emp.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesDept = filterDepartment === 'all' || emp.department === filterDepartment;
+      const matchesStatus = filterStatus === 'all' || emp.invitation_status === filterStatus;
+      return matchesSearch && matchesDept && matchesStatus;
+    });
+    
+    return [...filtered].sort((a, b) => 
+      compareValues(a, b, employeeSort.column, employeeSort.direction)
+    );
+  }, [employees, searchQuery, filterDepartment, filterStatus, employeeSort, compareValues]);
+
+  // Memoized filtered and sorted contacts - O(n log n) sorting
+  const filteredSortedContacts = useMemo(() => {
+    const filtered = contacts.filter(contact => {
+      const matchesSearch = contact.name?.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
+                            contact.email?.toLowerCase().includes(contactSearchQuery.toLowerCase());
+      const matchesStatus = filterContactStatus === 'all' || contact.status === filterContactStatus;
+      const matchesTemp = filterTemperature === 'all' || contact.temperature === filterTemperature;
+      const matchesEmp = filterAssignedEmp === 'all' || contact.assigned_emp_id === parseInt(filterAssignedEmp);
+      return matchesSearch && matchesStatus && matchesTemp && matchesEmp;
+    });
+    
+    return [...filtered].sort((a, b) => 
+      compareValues(a, b, contactSort.column, contactSort.direction)
+    );
+  }, [contacts, contactSearchQuery, filterContactStatus, filterTemperature, filterAssignedEmp, contactSort, compareValues]);
+
+  // Sort icon component
+  const SortIcon = ({ column, currentSort }) => {
+    if (currentSort.column !== column) {
+      return <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
+    }
+    return currentSort.direction === 'asc' 
+      ? <ChevronUp className="w-3.5 h-3.5 text-sky-500" />
+      : <ChevronDown className="w-3.5 h-3.5 text-sky-500" />;
+  };
 
   // Calculate invitation stats first (needed for other calculations)
   const invitedCount = employees.filter(e => e.invitation_status === 'INVITED').length;
@@ -251,6 +398,41 @@ const AdminDashboard = () => {
   
   // Calculate average leads per active employee
   const avgLeadsPerEmployee = activeCount > 0 ? Math.round(totalLeads / activeCount) : 0;
+
+  // Contact status options
+  const contactStatuses = ['LEAD', 'MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER', 'EVANGELIST'];
+  const temperatures = ['HOT', 'WARM', 'COLD'];
+
+  // Get contact status badge
+  const getContactStatusBadge = (status) => {
+    const statusConfig = {
+      LEAD: { bg: 'bg-gray-100', text: 'text-gray-700' },
+      MQL: { bg: 'bg-blue-100', text: 'text-blue-700' },
+      SQL: { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+      OPPORTUNITY: { bg: 'bg-purple-100', text: 'text-purple-700' },
+      CUSTOMER: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+      EVANGELIST: { bg: 'bg-amber-100', text: 'text-amber-700' },
+    };
+    const config = statusConfig[status] || statusConfig.LEAD;
+    return (
+      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${config.bg} ${config.text}`}>
+        {status}
+      </span>
+    );
+  };
+
+  // Get temperature icon
+  const getTemperatureIcon = (temp) => {
+    switch (temp) {
+      case 'HOT':
+        return <Flame className="w-4 h-4 text-red-500" />;
+      case 'WARM':
+        return <Thermometer className="w-4 h-4 text-amber-500" />;
+      case 'COLD':
+      default:
+        return <Snowflake className="w-4 h-4 text-blue-500" />;
+    }
+  };
 
   const getInvitationStatusBadge = (status) => {
     switch (status) {
@@ -445,49 +627,85 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Team Management Section */}
+        {/* Tab Navigation */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-6">
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <h2 className="text-lg font-bold text-gray-900">Team Management</h2>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-                {/* Search */}
-                <div className="relative flex-1 w-full sm:w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search employees..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                  />
-                </div>
-                
-                {/* Status Filter */}
-                <div className="relative">
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="INVITED">Invited</option>
-                    <option value="DISABLED">Disabled</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
-                
-                {/* Department Filter */}
-                <div className="relative">
-                  <select
-                    value={filterDepartment}
-                    onChange={(e) => setFilterDepartment(e.target.value)}
-                    className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
-                  >
-                    <option value="all">All Departments</option>
-                    {departments.map(dept => (
-                      <option key={dept} value={dept}>{dept}</option>
+          <div className="border-b border-gray-100">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('team')}
+                className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold border-b-2 transition-colors ${
+                  activeTab === 'team'
+                    ? 'border-sky-500 text-sky-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Team Management
+                <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                  {employees.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab('contacts')}
+                className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold border-b-2 transition-colors ${
+                  activeTab === 'contacts'
+                    ? 'border-sky-500 text-sky-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Contact className="w-4 h-4" />
+                All Contacts
+                <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                  {contacts.length}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Team Management Tab */}
+          {activeTab === 'team' && (
+            <>
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <h2 className="text-lg font-bold text-gray-900">Team Management</h2>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+                    {/* Search */}
+                    <div className="relative flex-1 w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search employees..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      />
+                    </div>
+                    
+                    {/* Status Filter */}
+                    <div className="relative">
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
+                      >
+                        <option value="all">All Status</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="INVITED">Invited</option>
+                        <option value="DISABLED">Disabled</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    
+                    {/* Department Filter */}
+                    <div className="relative">
+                      <select
+                        value={filterDepartment}
+                        onChange={(e) => setFilterDepartment(e.target.value)}
+                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
+                      >
+                        <option value="all">All Departments</option>
+                        {departments.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -509,7 +727,7 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
               </div>
-            ) : filteredEmployees.length === 0 ? (
+            ) : filteredSortedEmployees.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500">No employees found</p>
@@ -525,16 +743,65 @@ const AdminDashboard = () => {
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
-                    <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Performance</th>
+                    <th 
+                      onClick={() => handleEmployeeSort('name')}
+                      className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        Employee
+                        <SortIcon column="name" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('invitation_status')}
+                      className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        Status
+                        <SortIcon column="invitation_status" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('department')}
+                      className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        Department
+                        <SortIcon column="department" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('contactsHandled')}
+                      className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        Leads
+                        <SortIcon column="contactsHandled" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('dealsClosed')}
+                      className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        Deals
+                        <SortIcon column="dealsClosed" currentSort={employeeSort} />
+                      </div>
+                    </th>
+                    <th 
+                      onClick={() => handleEmployeeSort('totalRevenue')}
+                      className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        Revenue
+                        <SortIcon column="totalRevenue" currentSort={employeeSort} />
+                      </div>
+                    </th>
                     <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredEmployees.map((employee) => (
+                  {filteredSortedEmployees.map((employee) => (
                     <tr key={employee.emp_id} className={`hover:bg-gray-50 transition-colors ${employee.invitation_status === 'DISABLED' ? 'opacity-60' : ''}`}>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
@@ -554,20 +821,6 @@ const AdminDashboard = () => {
                         </div>
                       </td>
                       <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${
-                          employee.role === 'ADMIN'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-sky-100 text-sky-700'
-                        }`}>
-                          {employee.role === 'ADMIN' ? (
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                          ) : (
-                            <Shield className="w-3.5 h-3.5" />
-                          )}
-                          {employee.role}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
                         {getInvitationStatusBadge(employee.invitation_status)}
                       </td>
                       <td className="py-4 px-6">
@@ -575,25 +828,18 @@ const AdminDashboard = () => {
                           {employee.department || 'N/A'}
                         </span>
                       </td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center justify-center gap-4">
-                          <div className="text-center">
-                            <p className="text-sm font-bold text-purple-600">{parseInt(employee.contactsHandled) || 0}</p>
-                            <p className="text-xs text-gray-400">Leads</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm font-bold text-emerald-600">{parseInt(employee.dealsClosed) || 0}</p>
-                            <p className="text-xs text-gray-400">Deals</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm font-bold text-amber-600">
-                              ${parseFloat(employee.totalRevenue) >= 1000 
-                                ? (parseFloat(employee.totalRevenue) / 1000).toFixed(1) + 'k' 
-                                : (parseFloat(employee.totalRevenue) || 0).toFixed(0)}
-                            </p>
-                            <p className="text-xs text-gray-400">Revenue</p>
-                          </div>
-                        </div>
+                      <td className="py-4 px-6 text-center">
+                        <p className="text-sm font-bold text-purple-600">{parseInt(employee.contactsHandled) || 0}</p>
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <p className="text-sm font-bold text-emerald-600">{parseInt(employee.dealsClosed) || 0}</p>
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <p className="text-sm font-bold text-amber-600">
+                          ${parseFloat(employee.totalRevenue) >= 1000 
+                            ? (parseFloat(employee.totalRevenue) / 1000).toFixed(1) + 'k' 
+                            : (parseFloat(employee.totalRevenue) || 0).toFixed(0)}
+                        </p>
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex items-center justify-center gap-2">
@@ -725,6 +971,223 @@ const AdminDashboard = () => {
               </table>
             )}
           </div>
+            </>
+          )}
+
+          {/* Contacts Tab */}
+          {activeTab === 'contacts' && (
+            <>
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <h2 className="text-lg font-bold text-gray-900">All Contacts</h2>
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    {/* Search */}
+                    <div className="relative flex-1 w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search contacts..."
+                        value={contactSearchQuery}
+                        onChange={(e) => setContactSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      />
+                    </div>
+                    
+                    {/* Status Filter */}
+                    <div className="relative">
+                      <select
+                        value={filterContactStatus}
+                        onChange={(e) => setFilterContactStatus(e.target.value)}
+                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
+                      >
+                        <option value="all">All Status</option>
+                        {contactStatuses.map(status => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    
+                    {/* Temperature Filter */}
+                    <div className="relative">
+                      <select
+                        value={filterTemperature}
+                        onChange={(e) => setFilterTemperature(e.target.value)}
+                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
+                      >
+                        <option value="all">All Temp</option>
+                        {temperatures.map(temp => (
+                          <option key={temp} value={temp}>{temp}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    
+                    {/* Assigned Employee Filter */}
+                    <div className="relative">
+                      <select
+                        value={filterAssignedEmp}
+                        onChange={(e) => setFilterAssignedEmp(e.target.value)}
+                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
+                      >
+                        <option value="all">All Employees</option>
+                        {employees.filter(e => e.invitation_status === 'ACTIVE').map(emp => (
+                          <option key={emp.emp_id} value={emp.emp_id}>{emp.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contacts Table */}
+              <div className="overflow-x-auto">
+                {contactsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+                  </div>
+                ) : filteredSortedContacts.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Contact className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">No contacts found</p>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th 
+                          onClick={() => handleContactSort('name')}
+                          className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            Contact
+                            <SortIcon column="name" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('status')}
+                          className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            Status
+                            <SortIcon column="status" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('temperature')}
+                          className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center justify-center gap-1.5">
+                            Temp
+                            <SortIcon column="temperature" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('assigned_emp_name')}
+                          className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            Assigned To
+                            <SortIcon column="assigned_emp_name" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('total_sessions')}
+                          className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center justify-center gap-1.5">
+                            Sessions
+                            <SortIcon column="total_sessions" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th 
+                          onClick={() => handleContactSort('last_contacted')}
+                          className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            Last Contact
+                            <SortIcon column="last_contacted" currentSort={contactSort} />
+                          </div>
+                        </th>
+                        <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredSortedContacts.map((contact) => (
+                        <tr key={contact.contact_id} className="hover:bg-gray-50 transition-colors">
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm ${
+                                contact.temperature === 'HOT' 
+                                  ? 'bg-gradient-to-br from-red-400 to-orange-500' 
+                                  : contact.temperature === 'WARM'
+                                    ? 'bg-gradient-to-br from-amber-400 to-yellow-500'
+                                    : 'bg-gradient-to-br from-sky-400 to-blue-500'
+                              }`}>
+                                {getInitials(contact.name)}
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{contact.name}</p>
+                                <p className="text-xs text-gray-500">{contact.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            {getContactStatusBadge(contact.status)}
+                          </td>
+                          <td className="py-4 px-6 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {getTemperatureIcon(contact.temperature)}
+                              <span className="text-xs font-medium text-gray-600">{contact.temperature}</span>
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            {contact.assigned_emp_name ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white text-xs font-medium">
+                                  {getInitials(contact.assigned_emp_name)}
+                                </div>
+                                <span className="text-sm text-gray-700">{contact.assigned_emp_name}</span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">Unassigned</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6 text-center">
+                            <span className="text-sm font-semibold text-gray-700">{contact.total_sessions || 0}</span>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className="text-sm text-gray-500">
+                              {contact.last_contacted ? formatTimeAgo(contact.last_contacted) : 'Never'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="flex items-center justify-center gap-2">
+                              <button 
+                                onClick={() => handleViewContact(contact)}
+                                className="p-2 text-gray-500 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleFollowupsClick(contact)}
+                                className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                title="Go to Followups"
+                              >
+                                <ArrowRight className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1122,6 +1585,25 @@ const AdminDashboard = () => {
               </div>
             </div>
           </div>
+        </>
+      )}
+
+      {/* Contact Detail Sidebar */}
+      {selectedContact && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setSelectedContact(null)}
+          />
+          <ContactDetail
+            contact={selectedContact}
+            onClose={() => setSelectedContact(null)}
+            onUpdate={() => {
+              fetchContacts();
+              setSelectedContact(null);
+            }}
+            onFollowupsClick={handleFollowupsClick}
+          />
         </>
       )}
 
