@@ -42,7 +42,14 @@ export const createContact = async (data) => {
 --------------------------------------------------- */
 export const getById = async (contactId) => {
   const [rows] = await db.query(
-    `SELECT * FROM contacts WHERE contact_id = ?`,
+    `SELECT 
+      c.*,
+      e.name as assigned_emp_name,
+      e.email as assigned_emp_email,
+      e.department as assigned_emp_department
+    FROM contacts c
+    LEFT JOIN employees e ON c.assigned_emp_id = e.emp_id
+    WHERE c.contact_id = ?`,
     [contactId]
   );
 
@@ -180,12 +187,16 @@ export const getByStatus = async (status, companyId) => {
     `
     SELECT 
       c.*,
+      e.name as assigned_emp_name,
+      e.email as assigned_emp_email,
+      e.department as assigned_emp_department,
       COALESCE(AVG(s.rating), 0) as average_rating
     FROM contacts c
+    LEFT JOIN employees e ON c.assigned_emp_id = e.emp_id
     LEFT JOIN sessions s ON c.contact_id = s.contact_id
     WHERE c.status = ?
       AND c.company_id = ?
-    GROUP BY c.contact_id
+    GROUP BY c.contact_id, e.name, e.email, e.department
     ORDER BY c.created_at DESC
     `,
     [status, companyId]
@@ -202,11 +213,15 @@ export const getAll = async (companyId, limit = 50, offset = 0) => {
     `
     SELECT 
       c.*,
+      e.name as assigned_emp_name,
+      e.email as assigned_emp_email,
+      e.department as assigned_emp_department,
       COALESCE(AVG(s.rating), 0) as average_rating
     FROM contacts c
+    LEFT JOIN employees e ON c.assigned_emp_id = e.emp_id
     LEFT JOIN sessions s ON c.contact_id = s.contact_id
     WHERE c.company_id = ?
-    GROUP BY c.contact_id
+    GROUP BY c.contact_id, e.name, e.email, e.department
     ORDER BY c.created_at DESC
     LIMIT ? OFFSET ?
     `,
