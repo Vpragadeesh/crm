@@ -346,6 +346,8 @@ export const trackClick = async (trackingToken, url) => {
 
 export const checkReplies = async () => {
   const candidates = await repo.getRecipientsForReplyCheck();
+  console.log(`🔍 A/B test reply check: Found ${candidates.length} candidate(s) to check`);
+  
   if (!candidates.length) return 0;
 
   let detected = 0;
@@ -353,23 +355,48 @@ export const checkReplies = async () => {
   for (const r of candidates) {
     try {
       const unixTs = Math.floor(new Date(r.sent_at).getTime() / 1000);
+      
+      // Search for emails FROM the contact that are replies (have "Re:" in subject or in same thread)
+      // We search for messages after the send time that are from the contact
+      const searchQuery = `from:${r.contact_email} after:${unixTs}`;
+      
+      console.log(`🔍 Checking recipient ${r.recipient_id}: ${r.contact_email}, query: "${searchQuery}"`);
+      
       const results = await gmailService.searchMessages(
         r.emp_id,
-        `from:${r.contact_email} after:${unixTs}`,
-        { maxResults: 1 }
+        searchQuery,
+        { maxResults: 5 } // Get up to 5 to filter out false positives
       );
 
-      if (Array.isArray(results) && results.length > 0) {
-        await repo.updateRecipient(r.recipient_id, {
-          replied: 1,
-          replied_at: new Date(),
+      // searchMessages returns { messages: [], nextPageToken }
+      const messages = results?.messages || [];
+      console.log(`   → Found ${messages.length} message(s)`);
+
+      if (messages.length > 0) {
+        // Filter to find actual replies (subject starts with "Re:" or "RE:")
+        const actualReplies = messages.filter(msg => {
+          const subject = msg.subject || '';
+          return subject.toLowerCase().startsWith('re:');
         });
-        const counterCol = r.variant === "A" ? "replied_a" : "replied_b";
-        await repo.incrementCounter(r.test_id, counterCol);
-        detected++;
+        
+        console.log(`   → ${actualReplies.length} actual reply(ies) (filtered by "Re:" subject)`);
+        
+        if (actualReplies.length > 0) {
+          console.log(`   ✅ Reply detected! Updating recipient ${r.recipient_id}, variant ${r.variant}`);
+          
+          await repo.updateRecipient(r.recipient_id, {
+            replied: 1,
+            replied_at: new Date(),
+          });
+          const counterCol = r.variant === "A" ? "replied_a" : "replied_b";
+          await repo.incrementCounter(r.test_id, counterCol);
+          detected++;
+          
+          console.log(`   ✅ Updated counter ${counterCol} for test ${r.test_id}`);
+        }
       }
-    } catch {
-      // Gmail not connected — skip silently
+    } catch (err) {
+      console.error(`   ❌ Error checking recipient ${r.recipient_id}:`, err.message);
     }
   }
 
