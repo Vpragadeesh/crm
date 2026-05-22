@@ -48,11 +48,11 @@ export const getSalesPipeline = async (companyId, filters = {}) => {
   // Deal velocity (avg days between stages)
   const [velocityData] = await db.query(
     `SELECT 
-      csh.from_status,
-      csh.to_status,
+      csh.old_status as from_status,
+      csh.new_status as to_status,
       AVG(TIMESTAMPDIFF(DAY, 
-        (SELECT created_at FROM contact_status_history 
-         WHERE contact_id = csh.contact_id AND to_status = csh.from_status 
+        (SELECT changed_at FROM contact_status_history 
+         WHERE contact_id = csh.contact_id AND new_status = csh.old_status 
          ORDER BY changed_at DESC LIMIT 1),
         csh.changed_at
       )) as avg_days
@@ -61,11 +61,12 @@ export const getSalesPipeline = async (companyId, filters = {}) => {
     WHERE c.company_id = ?
       ${startDate ? "AND csh.changed_at >= ?" : ""}
       ${endDate ? "AND csh.changed_at <= ?" : ""}
-    GROUP BY csh.from_status, csh.to_status`,
+    GROUP BY csh.old_status, csh.new_status`,
     params
   );
 
   // Conversion rates
+  const conversionParams = [...params, ...params, ...params, ...params]; // Repeat params for each UNION
   const [conversionData] = await db.query(
     `SELECT 
       'LEAD_TO_MQL' as conversion_type,
@@ -101,7 +102,7 @@ export const getSalesPipeline = async (companyId, filters = {}) => {
             NULLIF(COUNT(CASE WHEN c.status IN ('OPPORTUNITY', 'CUSTOMER', 'EVANGELIST') THEN 1 END), 0), 2) as rate
     FROM contacts c
     WHERE ${whereClause}`,
-    params
+    conversionParams
   );
 
   // Total revenue from closed deals
@@ -231,7 +232,7 @@ export const getContactLifecycle = async (companyId, filters = {}) => {
   // Average time in each stage
   const [timeInStage] = await db.query(
     `SELECT 
-      csh.to_status as status,
+      csh.new_status as status,
       AVG(TIMESTAMPDIFF(DAY, csh.changed_at, 
         COALESCE(
           (SELECT changed_at FROM contact_status_history 
@@ -245,7 +246,7 @@ export const getContactLifecycle = async (companyId, filters = {}) => {
     WHERE c.company_id = ?
       ${startDate ? "AND csh.changed_at >= ?" : ""}
       ${endDate ? "AND csh.changed_at <= ?" : ""}
-    GROUP BY csh.to_status`,
+    GROUP BY csh.new_status`,
     params
   );
 
@@ -357,19 +358,23 @@ export const getEmailCampaigns = async (companyId, filters = {}) => {
 export const getAutomationROI = async (companyId, filters = {}) => {
   const { startDate, endDate } = filters;
 
-  let whereClause = "company_id = ?";
-  const params = [companyId];
-
-  if (startDate) {
-    whereClause += " AND created_at >= ?";
-    params.push(startDate);
-  }
-  if (endDate) {
-    whereClause += " AND created_at <= ?";
-    params.push(endDate);
-  }
+  // Build base params
+  const baseParams = [companyId];
+  if (startDate) baseParams.push(startDate);
+  if (endDate) baseParams.push(endDate);
 
   // Automation execution stats
+  let automationWhere = "a.company_id = ?";
+  const automationParams = [companyId];
+  if (startDate) {
+    automationWhere += " AND a.created_at >= ?";
+    automationParams.push(startDate);
+  }
+  if (endDate) {
+    automationWhere += " AND a.created_at <= ?";
+    automationParams.push(endDate);
+  }
+
   const [automationStats] = await db.query(
     `SELECT 
       a.automation_id,
@@ -382,13 +387,24 @@ export const getAutomationROI = async (companyId, filters = {}) => {
       ROUND(a.successful_runs * 100.0 / NULLIF(a.total_runs, 0), 2) as success_rate,
       a.created_at
     FROM automations a
-    WHERE a.${whereClause}
+    WHERE ${automationWhere}
     ORDER BY a.total_runs DESC
     LIMIT 10`,
-    params
+    automationParams
   );
 
   // Sequence performance
+  let sequenceWhere = "s.company_id = ?";
+  const sequenceParams = [companyId];
+  if (startDate) {
+    sequenceWhere += " AND s.created_at >= ?";
+    sequenceParams.push(startDate);
+  }
+  if (endDate) {
+    sequenceWhere += " AND s.created_at <= ?";
+    sequenceParams.push(endDate);
+  }
+
   const [sequenceStats] = await db.query(
     `SELECT 
       s.sequence_id,
@@ -403,14 +419,25 @@ export const getAutomationROI = async (companyId, filters = {}) => {
             NULLIF(COUNT(DISTINCT se.enrollment_id), 0), 2) as completion_rate
     FROM sequences s
     LEFT JOIN sequence_enrollments se ON s.sequence_id = se.sequence_id
-    WHERE s.${whereClause}
+    WHERE ${sequenceWhere}
     GROUP BY s.sequence_id, s.name, s.is_active
     ORDER BY total_enrollments DESC
     LIMIT 10`,
-    params
+    sequenceParams
   );
 
   // A/B test results
+  let abTestWhere = "ab.company_id = ?";
+  const abTestParams = [companyId];
+  if (startDate) {
+    abTestWhere += " AND ab.created_at >= ?";
+    abTestParams.push(startDate);
+  }
+  if (endDate) {
+    abTestWhere += " AND ab.created_at <= ?";
+    abTestParams.push(endDate);
+  }
+
   const [abTestStats] = await db.query(
     `SELECT 
       ab.test_id,
@@ -428,14 +455,25 @@ export const getAutomationROI = async (companyId, filters = {}) => {
             NULLIF(COUNT(DISTINCT CASE WHEN abr.variant = 'B' THEN abr.recipient_id END), 0), 2) as variant_b_open_rate
     FROM ab_tests ab
     LEFT JOIN ab_test_recipients abr ON ab.test_id = abr.test_id
-    WHERE ab.${whereClause}
+    WHERE ${abTestWhere}
     GROUP BY ab.test_id, ab.name, ab.status, ab.variant_a_name, ab.variant_b_name
     ORDER BY ab.created_at DESC
     LIMIT 10`,
-    params
+    abTestParams
   );
 
   // Compare automated vs manual outreach
+  let comparisonWhere = "c.company_id = ?";
+  const comparisonParams = [companyId];
+  if (startDate) {
+    comparisonWhere += " AND e.sent_at >= ?";
+    comparisonParams.push(startDate);
+  }
+  if (endDate) {
+    comparisonWhere += " AND e.sent_at <= ?";
+    comparisonParams.push(endDate);
+  }
+
   const [[comparisonData]] = await db.query(
     `SELECT 
       -- Automated (via sequences/automations)
@@ -451,8 +489,8 @@ export const getAutomationROI = async (companyId, filters = {}) => {
             NULLIF(COUNT(DISTINCT CASE WHEN e.template_id IS NULL THEN e.email_id END), 0), 2) as manual_open_rate
     FROM emails e
     JOIN contacts c ON e.contact_id = c.contact_id
-    WHERE c.${whereClause}`,
-    params
+    WHERE ${comparisonWhere}`,
+    comparisonParams
   );
 
   return {
