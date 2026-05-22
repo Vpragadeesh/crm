@@ -8,8 +8,34 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 
-// Load environment variables
+// Load environment variables FIRST
 dotenv.config();
+
+// Validate required environment variables
+const REQUIRED_ENV_VARS = [
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'GOOGLE_REDIRECT_URI'
+];
+
+const missingVars = REQUIRED_ENV_VARS.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  console.error('❌ FATAL ERROR: Missing required environment variables:');
+  missingVars.forEach(varName => {
+    console.error(`   - ${varName}`);
+  });
+  console.error('\n💡 Please check your .env file and ensure all required variables are set.');
+  console.error('   See .env.example for reference.\n');
+  process.exit(1);
+}
+
+// Log Google OAuth configuration (without secrets)
+console.log('✅ Google OAuth Configuration:');
+console.log(`   - Client ID: ${process.env.GOOGLE_CLIENT_ID.substring(0, 20)}...`);
+console.log(`   - Redirect URI: ${process.env.GOOGLE_REDIRECT_URI}`);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

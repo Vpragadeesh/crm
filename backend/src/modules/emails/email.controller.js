@@ -172,9 +172,23 @@ export const getConnectionStatus = async (req, res, next) => {
  */
 export const getConnectUrl = async (req, res, next) => {
   try {
+    // Validate required environment variables before generating URL
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
+      console.error('❌ Cannot generate OAuth URL: Missing environment variables');
+      return res.status(500).json({
+        message: "Server configuration error: Google OAuth is not properly configured",
+        code: "OAUTH_CONFIG_ERROR",
+      });
+    }
+
     const authUrl = emailService.getEmailAuthUrl(req.user.empId);
+    
+    console.log(`🔐 OAuth URL requested by employee ${req.user.empId}`);
+    console.log(`   - Redirect URI: ${process.env.GOOGLE_REDIRECT_URI}`);
+    
     res.json({ authUrl });
   } catch (error) {
+    console.error('❌ Error generating OAuth URL:', error.message);
     next(error);
   }
 };
