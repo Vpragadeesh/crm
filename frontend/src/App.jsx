@@ -7,6 +7,7 @@ import { EmailCacheProvider } from './context/EmailCacheContext';
 import { ContactsCacheProvider } from './context/ContactsCacheContext';
 import { SessionsCacheProvider } from './context/SessionsCacheContext';
 import { SocketProvider, useSocketEvent } from './context/SocketContext';
+import { ModalProvider } from './context/ModalContext';
 import { useRoutePrefetch } from './hooks/useRoutePrefetch';
 import { lazy, Suspense, Component, memo, useCallback, useState } from 'react';
 import { IncomingCallBanner } from './components/discuss/LiveKitCallView';
@@ -311,10 +312,11 @@ function App() {
               <ContactsCacheProvider>
                 <SessionsCacheProvider>
                   <SocketProvider>
-                  <BrowserRouter>
-                    <RoutePrefetchWrapper>
-                      <GlobalIncomingCallOverlay />
-                      <Routes>
+                    <ModalProvider>
+                      <BrowserRouter>
+                        <RoutePrefetchWrapper>
+                          <GlobalIncomingCallOverlay />
+                          <Routes>
                         {/* ===== PUBLIC ROUTES ===== */}
                         <Route
                           path="/login"
@@ -521,6 +523,7 @@ function App() {
                       </Routes>
                     </RoutePrefetchWrapper>
                   </BrowserRouter>
+                    </ModalProvider>
                   </SocketProvider>
                 </SessionsCacheProvider>
               </ContactsCacheProvider>

@@ -1,5 +1,6 @@
 import { X, User, Mail, Phone, Briefcase, Thermometer } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 // Stage configuration for display
 const STAGE_CONFIG = {
@@ -48,6 +49,9 @@ const InputField = ({ icon: Icon, label, name, type = 'text', placeholder, requi
 const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false, activeStage = 'LEAD' }) => {
   // Memoize stage config for performance
   const stageConfig = useMemo(() => STAGE_CONFIG[activeStage] || STAGE_CONFIG.LEAD, [activeStage]);
+  
+  // Close modal on ESC key press
+  useCloseAllModals(onClose, isOpen);
   
   const [formData, setFormData] = useState({
     name: '',

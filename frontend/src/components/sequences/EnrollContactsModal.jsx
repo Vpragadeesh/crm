@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Search, Users, CheckSquare, Square, Loader2, AlertCircle, UserCheck } from 'lucide-react';
 import { getContacts } from '../../services/contactService';
 import { enrollContacts } from '../../services/sequenceService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 const STAGE_OPTIONS = [
   { value: '', label: 'All Stages' },
@@ -24,6 +25,7 @@ const STAGE_COLOR = {
 };
 
 export default function EnrollContactsModal({ sequence, onClose, onEnrolled }) {
+  useCloseAllModals(onClose);
   const [contacts, setContacts]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [enrolling, setEnrolling] = useState(false);

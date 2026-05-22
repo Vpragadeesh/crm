@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, AlertCircle, CheckCircle2, XCircle, MinusCircle, Mail } from 'lucide-react';
 import * as seqService from '../../services/sequenceService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 /* ── status config ───────────────────────────────── */
 const LOG_STATUS = {
@@ -79,6 +80,7 @@ function LogEntry({ entry, isLast }) {
 
 /* ── modal ───────────────────────────────────────── */
 export default function ExecutionLogModal({ enrollment, sequence, totalSteps, onClose }) {
+  useCloseAllModals(onClose);
   const [logs, setLogs]       = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);

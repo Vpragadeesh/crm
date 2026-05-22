@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Plus, Phone, Mail, Users, Video, Star, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { getSessionsByContact } from '../../services/sessionService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 const FollowupsModal = ({
   isOpen,
@@ -9,6 +10,7 @@ const FollowupsModal = ({
   onAddSession,
   onTakeAction
 }) => {
+  useCloseAllModals(onClose, isOpen);
   const [sessions, setSessions] = useState([]);
   const [averageRating, setAverageRating] = useState(0);
   const [loading, setLoading] = useState(true);

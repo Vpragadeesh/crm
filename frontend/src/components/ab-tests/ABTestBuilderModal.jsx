@@ -6,6 +6,7 @@ import {
 import { getContacts } from '../../services/contactService';
 import { getTemplates } from '../../services/emailTemplateService';
 import * as abTestService from '../../services/abTestService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 const STAGE_OPTIONS = [
   { value: '', label: 'All Stages' },
@@ -178,6 +179,7 @@ function ContactSelector({ contacts, selected, onToggle, onSelectAll, search, on
 /* ── main modal ──────────────────────────────────── */
 export default function ABTestBuilderModal({ test = null, onClose, onSaved }) {
   const isEdit = !!test;
+  useCloseAllModals(onClose);
 
   // Form state
   const [name, setName]           = useState('');

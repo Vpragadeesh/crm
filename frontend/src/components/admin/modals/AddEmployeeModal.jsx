@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { X, Send, RefreshCw } from 'lucide-react';
+import { useCloseAllModals } from '../../../hooks/useEscapeKey';
 
 /**
  * AddEmployeeModal - Modal for inviting new employees
@@ -14,6 +15,7 @@ const AddEmployeeModal = memo(({
   actionLoading,
   onSubmit
 }) => {
+  useCloseAllModals(onClose, isOpen);
   if (!isOpen) return null;
 
   return (

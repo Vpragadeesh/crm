@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import * as seqService from '../../services/sequenceService';
 import ExecutionLogModal from './ExecutionLogModal';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 /* ── constants ───────────────────────────────────── */
 const FILTER_TABS = [
@@ -173,6 +174,7 @@ function EnrollmentRow({ enrollment, totalSteps, onPause, onResume, onCancel, on
 
 /* ── modal ───────────────────────────────────────── */
 export default function SequenceEnrollmentsModal({ sequence, onClose }) {
+  useCloseAllModals(onClose);
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);

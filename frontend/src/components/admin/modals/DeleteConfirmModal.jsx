@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Trash2 } from 'lucide-react';
+import { useCloseAllModals } from '../../../hooks/useEscapeKey';
 
 /**
  * DeleteConfirmModal - Confirmation modal for deleting employees
@@ -11,6 +12,7 @@ const DeleteConfirmModal = memo(({
   onConfirm,
   actionLoading
 }) => {
+  useCloseAllModals(onClose, !!employee);
   if (!employee) return null;
 
   return (
