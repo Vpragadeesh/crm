@@ -477,3 +477,87 @@ export const getAutomationROI = async (companyId, filters = {}) => {
     },
   };
 };
+
+/**
+ * Call Metrics Analytics
+ * Total call volume, answered vs missed, employee performance
+ */
+export const getCallMetrics = async (companyId, filters = {}) => {
+  const { startDate, endDate, employeeId } = filters;
+
+  let whereClause = "cl.company_id = ?";
+  const params = [companyId];
+
+  if (startDate) {
+    whereClause += " AND cl.start_time >= ?";
+    params.push(startDate);
+  }
+  if (endDate) {
+    whereClause += " AND cl.start_time <= ?";
+    params.push(endDate);
+  }
+  if (employeeId) {
+    whereClause += " AND cl.employee_id = ?";
+    params.push(employeeId);
+  }
+
+  const [overviewRows] = await db.query(
+    `SELECT
+      COUNT(*) as total_calls,
+      SUM(CASE WHEN cl.status = 'COMPLETED' THEN 1 ELSE 0 END) as answered_calls,
+      SUM(CASE WHEN cl.status = 'MISSED' THEN 1 ELSE 0 END) as missed_calls,
+      ROUND(AVG(CASE WHEN cl.status = 'COMPLETED' THEN cl.duration ELSE NULL END), 2) as avg_duration,
+      ROUND(SUM(CASE WHEN cl.status = 'COMPLETED' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as connectivity_rate
+    FROM call_logs cl
+    WHERE ${whereClause}`,
+    params
+  );
+
+  const byEmployeeParams = [];
+  const byEmployeeOnClauses = [];
+  const byEmployeeWhereClauses = [];
+
+  if (startDate) {
+    byEmployeeOnClauses.push('cl.start_time >= ?');
+    byEmployeeParams.push(startDate);
+  }
+  if (endDate) {
+    byEmployeeOnClauses.push('cl.start_time <= ?');
+    byEmployeeParams.push(endDate);
+  }
+  if (employeeId) {
+    byEmployeeWhereClauses.push('e.id = ?');
+    byEmployeeParams.push(employeeId);
+  }
+
+  const byEmployeeQuery = `SELECT
+      e.id as employee_id,
+      CONCAT(e.first_name, ' ', e.last_name) as employee_name,
+      COUNT(cl.id) as total_calls,
+      SUM(CASE WHEN cl.status = 'COMPLETED' THEN 1 ELSE 0 END) as answered_calls,
+      ROUND(AVG(CASE WHEN cl.status = 'COMPLETED' THEN cl.duration ELSE NULL END), 2) as avg_duration
+    FROM employees e
+    LEFT JOIN call_logs cl
+      ON e.id = cl.employee_id AND cl.company_id = e.company_id ${byEmployeeOnClauses.length ? 'AND ' + byEmployeeOnClauses.join(' AND ') : ''}
+    WHERE e.company_id = ? AND e.status = 'ACTIVE' ${byEmployeeWhereClauses.length ? 'AND ' + byEmployeeWhereClauses.join(' AND ') : ''}
+    GROUP BY e.id
+    ORDER BY total_calls DESC`;
+
+  const [byEmployeeRows] = await db.query(byEmployeeQuery, [...byEmployeeParams, companyId]);
+
+  const [statusRows] = await db.query(
+    `SELECT
+      cl.status,
+      COUNT(*) as count
+    FROM call_logs cl
+    WHERE ${whereClause}
+    GROUP BY cl.status`,
+    params
+  );
+
+  return {
+    overview: overviewRows[0] || {},
+    byEmployee: byEmployeeRows,
+    statusDistribution: statusRows,
+  };
+};

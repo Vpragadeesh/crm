@@ -9,7 +9,7 @@ import * as advancedAnalyticsRepo from '../src/modules/analytics/advancedAnalyti
 
 dotenv.config();
 
-const TEST_COMPANY_ID = 1; // Change to your test company ID
+const TEST_COMPANY_ID = 2; // Change to your test company ID
 
 async function testSalesPipeline() {
   console.log('\n📊 Testing Sales Pipeline Analytics...');

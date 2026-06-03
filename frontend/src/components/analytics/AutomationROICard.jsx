@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Zap, GitBranch, TestTube, TrendingUp } from 'lucide-react';
 import * as advancedAnalyticsService from '../../services/advancedAnalyticsService';
 import * as cookieCache from '../../utils/cookieCache';
@@ -8,11 +8,7 @@ const AutomationROICard = ({ filters, onLoadTime }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, [filters]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const startTime = performance.now();
     setLoading(true);
     setError(null);
@@ -36,7 +32,11 @@ const AutomationROICard = ({ filters, onLoadTime }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, onLoadTime]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   if (loading) {
     return (
@@ -59,67 +59,32 @@ const AutomationROICard = ({ filters, onLoadTime }) => {
 
   if (!data) return null;
 
-  const { automations, sequences, abTests, comparison } = data;
+  const { automations = [], sequences = [], abTests = [], comparison = {} } = data;
 
   return (
     <div className="space-y-6">
-      {/* Automated vs Manual Comparison */}
+      {/* Outreach Summary */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Automated vs Manual Outreach</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg border border-purple-200">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-purple-700">🤖 Automated</span>
-              <Zap className="w-5 h-5 text-purple-600" />
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Outreach Summary</h3>
+        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-lg border border-indigo-200">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-medium text-indigo-700">📧 Overall Outreach Stats</span>
+            <Zap className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <span className="text-sm text-indigo-700 block mb-1">Total Emails Sent</span>
+              <span className="text-2xl font-bold text-indigo-900">{comparison.total_emails || 0}</span>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-purple-700">Emails Sent</span>
-                <span className="text-lg font-bold text-purple-900">{comparison.automated_emails}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-purple-700">Opens</span>
-                <span className="text-lg font-bold text-purple-900">{comparison.automated_opens}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-purple-700">Open Rate</span>
-                <span className="text-2xl font-bold text-purple-900">{comparison.automated_open_rate}%</span>
-              </div>
+            <div>
+              <span className="text-sm text-indigo-700 block mb-1">Total Clicks</span>
+              <span className="text-2xl font-bold text-indigo-900">{comparison.total_clicks || 0}</span>
+            </div>
+            <div>
+              <span className="text-sm text-indigo-700 block mb-1">Overall Click Rate</span>
+              <span className="text-2xl font-bold text-indigo-900">{comparison.click_rate ? `${comparison.click_rate}%` : '0%'}</span>
             </div>
           </div>
-
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-blue-700">👤 Manual</span>
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-blue-700">Emails Sent</span>
-                <span className="text-lg font-bold text-blue-900">{comparison.manual_emails}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-blue-700">Opens</span>
-                <span className="text-lg font-bold text-blue-900">{comparison.manual_opens}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-blue-700">Open Rate</span>
-                <span className="text-2xl font-bold text-blue-900">{comparison.manual_open_rate}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ROI Insight */}
-        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm text-yellow-800">
-            <strong>💡 Insight:</strong> Automated emails have a{' '}
-            {comparison.automated_open_rate > comparison.manual_open_rate ? 'higher' : 'lower'} open rate{' '}
-            ({Math.abs(comparison.automated_open_rate - comparison.manual_open_rate).toFixed(1)}% difference).{' '}
-            {comparison.automated_open_rate > comparison.manual_open_rate 
-              ? 'Keep investing in automation!' 
-              : 'Consider improving template personalization.'}
-          </p>
         </div>
       </div>
 
@@ -147,11 +112,11 @@ const AutomationROICard = ({ filters, onLoadTime }) => {
                   </div>
                   <div>
                     <div className="text-gray-600">Successful</div>
-                    <div className="font-semibold text-green-600">{auto.successful_runs}</div>
+                    <div className="font-semibold text-green-600">{auto.success_runs}</div>
                   </div>
                   <div>
                     <div className="text-gray-600">Failed</div>
-                    <div className="font-semibold text-red-600">{auto.failed_runs}</div>
+                    <div className="font-semibold text-red-600">{auto.failure_runs}</div>
                   </div>
                   <div>
                     <div className="text-gray-600">Success Rate</div>
@@ -191,7 +156,7 @@ const AutomationROICard = ({ filters, onLoadTime }) => {
                   <tr key={seq.sequence_id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${seq.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                        <span className={`w-2 h-2 rounded-full ${seq.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                         <span className="font-medium text-gray-900">{seq.name}</span>
                       </div>
                     </td>

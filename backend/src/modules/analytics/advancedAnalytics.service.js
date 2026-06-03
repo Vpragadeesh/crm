@@ -39,3 +39,10 @@ export const getEmailCampaigns = async (companyId, filters) => {
 export const getAutomationROI = async (companyId, filters) => {
   return await advancedAnalyticsRepo.getAutomationROI(companyId, filters);
 };
+
+/**
+ * Get call and telephony metrics
+ */
+export const getCallMetrics = async (companyId, filters) => {
+  return await advancedAnalyticsRepo.getCallMetrics(companyId, filters);
+};

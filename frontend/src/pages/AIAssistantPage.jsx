@@ -25,6 +25,9 @@ import {
   deleteAssistantSession,
   renameAssistantSession,
 } from "../services/assistantService";
+import AssistantMessageBubble from "../components/assistant/AssistantMessageBubble";
+import AssistantWorkflow from "../components/assistant/AssistantWorkflow";
+import { buildVisualization } from "../utils/assistantVisualization";
 
 const QUICK_PROMPTS = [
   "Show me conversion rate by stage for this month",
@@ -54,41 +57,29 @@ const orderSessions = (list = []) => {
   });
 };
 
-const normalizeAssistantMessage = (message) => {
+const enrichAssistantMessage = (message) => {
   if (!message || message.role !== "assistant") return message;
 
-  const content = String(message.content || "").trim();
-  const insight = String(message.insight || "").trim();
-  const answer = content || insight;
+  const content = String(message.insight || message.content || "").trim();
+  const queryResult = message.query_result ?? message.queryResult ?? null;
+  const query = message.query || null;
+
+  let visualization = message.visualization || null;
+  if (!visualization && Array.isArray(queryResult) && queryResult.length > 0) {
+    visualization = buildVisualization(queryResult, { query, title: "CRM data" });
+  }
 
   return {
     ...message,
-    // Keep query/insight in state for internal debugging if needed,
-    // but render only a single user-facing answer.
-    content: answer,
+    content,
+    query,
+    query_result: queryResult,
+    visualization,
   };
 };
 
 const normalizeMessages = (messages = []) => {
-  return messages.map((m) => normalizeAssistantMessage(m));
-};
-
-const AssistantBubble = ({ message }) => {
-  const isAssistant = message.role === "assistant";
-  return (
-    <div className={`flex ${isAssistant ? "justify-start" : "justify-end"}`}>
-      <div
-        className={`max-w-[90%] rounded-2xl px-4 py-3 shadow-sm ${
-          isAssistant ? "bg-white border border-slate-200 text-slate-800" : "bg-sky-600 text-white"
-        }`}
-      >
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-        <p className={`mt-2 text-[11px] ${isAssistant ? "text-slate-400" : "text-sky-100"}`}>
-          {formatTime(message.timestamp)}
-        </p>
-      </div>
-    </div>
-  );
+  return messages.map((m) => enrichAssistantMessage(m));
 };
 
 const SessionRow = ({
@@ -123,9 +114,8 @@ const SessionRow = ({
 
   return (
     <div
-      className={`group relative rounded-xl border transition-colors ${
-        isActive ? activeClass : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
-      }`}
+      className={`group relative rounded-xl border transition-colors ${isActive ? activeClass : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
+        }`}
     >
       {isRenaming ? (
         <div className="flex items-center gap-1.5 px-2.5 py-2">
@@ -162,9 +152,8 @@ const SessionRow = ({
             className="flex-1 min-w-0 text-left"
           >
             <p
-              className={`text-sm truncate ${
-                isActive ? "font-semibold text-slate-900" : "font-medium text-slate-700"
-              }`}
+              className={`text-sm truncate ${isActive ? "font-semibold text-slate-900" : "font-medium text-slate-700"
+                }`}
             >
               {session.title || "New chat"}
             </p>
@@ -173,11 +162,9 @@ const SessionRow = ({
           <div ref={menuRef} className="relative shrink-0">
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen((p) => !p); }}
-              className={`h-6 w-6 inline-flex items-center justify-center rounded-md transition-opacity ${
-                isActive ? "text-slate-500 hover:text-slate-700 hover:bg-slate-200/60" : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/60"
-              } ${
-                menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus:opacity-100"
-              }`}
+              className={`h-6 w-6 inline-flex items-center justify-center rounded-md transition-opacity ${isActive ? "text-slate-500 hover:text-slate-700 hover:bg-slate-200/60" : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/60"
+                } ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus:opacity-100"
+                }`}
               title="Options"
             >
               <MoreHorizontal className="w-4 h-4" />
@@ -219,8 +206,7 @@ const AIAssistantPage = () => {
   const [creatingSession, setCreatingSession] = useState(false);
   const [loadingSession, setLoadingSession] = useState(false);
   const [sending, setSending] = useState(false);
-  const [executeQuery, setExecuteQuery] = useState(true);
-  const [generateInsight, setGenerateInsight] = useState(true);
+  const [agentWorkflow, setAgentWorkflow] = useState([]);
   const [hasDbConnection, setHasDbConnection] = useState(true);
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [renamingToken, setRenamingToken] = useState("");
@@ -270,9 +256,6 @@ const AIAssistantPage = () => {
 
       const dbConnected = Boolean(sessionData?.session?.hasDbConnection ?? true);
       setHasDbConnection(dbConnected);
-      if (!dbConnected) {
-        setExecuteQuery(false);
-      }
 
       const data = historyData;
       setMessages(normalizeMessages(data.messages || []));
@@ -288,7 +271,6 @@ const AIAssistantPage = () => {
     if (!activeToken) {
       setMessages([]);
       setHasDbConnection(true);
-      setExecuteQuery(true);
       return;
     }
     loadHistory(activeToken);
@@ -304,9 +286,8 @@ const AIAssistantPage = () => {
       });
 
       setActiveToken(data.sessionToken);
-      const dbConnected = Boolean(data?.session?.hasDbConnection);
+      const dbConnected = Boolean(data?.session?.hasDbConnection ?? true);
       setHasDbConnection(dbConnected);
-      setExecuteQuery(dbConnected);
 
       setSessions((prev) =>
         orderSessions([
@@ -325,12 +306,6 @@ const AIAssistantPage = () => {
           ...prev.filter((s) => s.sessionToken !== data.sessionToken),
         ])
       );
-
-      if (!dbConnected) {
-        setError(
-          "This session is running in query-generation mode because DB connectivity is unavailable. Query execution is disabled."
-        );
-      }
 
       setMessages([]);
       setSidebarOpenMobile(false);
@@ -365,7 +340,6 @@ const AIAssistantPage = () => {
 
     setPrompt("");
     setHasDbConnection(true);
-    setExecuteQuery(true);
   }, [activeToken]);
 
   const beginRename = useCallback((session) => {
@@ -408,17 +382,31 @@ const AIAssistantPage = () => {
     setPrompt("");
     setSending(true);
     setError("");
+    setAgentWorkflow([
+      { id: "translate", label: "Translating your question to SQL", status: "active" },
+      { id: "execute", label: "Fetching data from CRM database", status: "pending" },
+      { id: "visualize", label: "Building chart", status: "pending" },
+      { id: "insight", label: "Summarizing with AI", status: "pending" },
+    ]);
     setMessages((prev) => [...prev, optimistic]);
 
     try {
       const data = await sendAssistantMessage(activeToken, {
         message: userText,
-        executeQuery: hasDbConnection && executeQuery,
-        generateInsight,
+        executeQuery: hasDbConnection,
+        generateInsight: true,
       });
 
+      setAgentWorkflow(data?.workflow || []);
+
       if (data?.response) {
-        setMessages((prev) => [...prev, normalizeAssistantMessage(data.response)]);
+        const assistantMessage = enrichAssistantMessage({
+          ...data.response,
+          query: data.executedQuery || data.response?.query,
+          visualization: data.visualization || data.response.visualization,
+          workflow: data.workflow,
+        });
+        setMessages((prev) => [...prev, assistantMessage]);
       }
 
       setSessions((prev) =>
@@ -439,8 +427,9 @@ const AIAssistantPage = () => {
       setError(err?.response?.data?.message || "Failed to send message.");
     } finally {
       setSending(false);
+      setAgentWorkflow([]);
     }
-  }, [activeToken, prompt, executeQuery, generateInsight, hasDbConnection, sending]);
+  }, [activeToken, prompt, hasDbConnection, sending]);
 
   const handleQuickPrompt = useCallback(
     (value) => {
@@ -464,13 +453,13 @@ const AIAssistantPage = () => {
             </button>
             <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Bot className={`w-6 h-6 ${isAdmin ? "text-orange-600" : "text-sky-600"}`} />
-              AI Assistant
+              Chat support
             </h1>
           </div>
 
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <p className="hidden sm:flex items-center gap-1">
-              <ShieldCheck className="w-4 h-4" /> Tenant-safe, read-only analytics assistant
+              <ShieldCheck className="w-4 h-4" /> Agentic analytics · SQL via AI · charts from live CRM data
             </p>
             <button
               onClick={handleCreateSession}
@@ -484,17 +473,15 @@ const AIAssistantPage = () => {
 
         <div className="flex-1 min-h-0 flex">
           <aside
-            className={`border-r border-slate-100 bg-slate-50/70 w-full md:w-64 shrink-0 flex-col ${
-              sidebarOpenMobile ? "flex" : "hidden"
-            } md:flex`}
+            className={`border-r border-slate-100 bg-slate-50/70 w-full md:w-64 shrink-0 flex-col ${sidebarOpenMobile ? "flex" : "hidden"
+              } md:flex`}
           >
             <div className="px-3 pt-3 pb-2">
               <button
                 onClick={handleCreateSession}
                 disabled={creatingSession}
-                className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-xl text-white disabled:opacity-60 ${
-                  isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"
-                }`}
+                className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-xl text-white disabled:opacity-60 ${isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"
+                  }`}
               >
                 {creatingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} New chat
               </button>
@@ -537,31 +524,19 @@ const AIAssistantPage = () => {
           </aside>
 
           <section className="flex-1 min-h-0 flex flex-col bg-white">
-            <div className="px-4 sm:px-5 py-2.5 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-4 sm:px-5 py-2.5 border-b border-slate-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 text-xs text-slate-500">
                 <Sparkles className="w-3.5 h-3.5" />
-                Read-only mode and tenant-safe guardrails enabled
+                Ask in plain English → AI writes SQL → CRM runs it → chart + summary
               </div>
-              <div className="flex items-center gap-3 text-xs text-slate-500">
-                <label className="inline-flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    checked={executeQuery}
-                    disabled={!hasDbConnection}
-                    onChange={(e) => setExecuteQuery(e.target.checked)}
-                  />
-                  Execute
-                </label>
-                <label className="inline-flex items-center gap-1.5">
-                  <input type="checkbox" checked={generateInsight} onChange={(e) => setGenerateInsight(e.target.checked)} />
-                  Insight
-                </label>
-              </div>
+              <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5">
+                Agent mode
+              </span>
             </div>
 
             {!hasDbConnection && activeToken && (
               <div className="px-4 sm:px-5 py-2 border-b border-amber-100 bg-amber-50 text-xs text-amber-800">
-                Session is in query-generation mode only. SQL execution is currently unavailable.
+                Database execution is unavailable for this session. Only text answers will be returned.
               </div>
             )}
 
@@ -574,9 +549,8 @@ const AIAssistantPage = () => {
                     <p className="text-sm text-slate-500 mt-1">Ask naturally, like you would in ChatGPT or Gemini.</p>
                     <button
                       onClick={handleCreateSession}
-                      className={`mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white ${
-                        isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"
-                      }`}
+                      className={`mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white ${isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"
+                        }`}
                     >
                       <Plus className="w-4 h-4" /> Start Chat
                     </button>
@@ -608,12 +582,20 @@ const AIAssistantPage = () => {
               )}
 
               {messages.map((m, idx) => (
-                <AssistantBubble key={`${m.timestamp || idx}-${idx}`} message={m} />
+                <AssistantMessageBubble
+                  key={`${m.timestamp || idx}-${idx}`}
+                  message={m}
+                  isLatest={idx === messages.length - 1 && !sending}
+                  isAdmin={isAdmin}
+                />
               ))}
 
               {sending && (
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Thinking...
+                <div className="max-w-md space-y-3">
+                  <AssistantWorkflow steps={agentWorkflow} isAdmin={isAdmin} />
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Running agent workflow...
+                  </div>
                 </div>
               )}
 
@@ -634,16 +616,15 @@ const AIAssistantPage = () => {
                     }
                   }}
                   rows={2}
-                  placeholder={activeToken ? "Message AI Assistant..." : "Select or create a chat to begin"}
+                  placeholder={activeToken ? "Message Chat Support..." : "Select or create a chat to begin"}
                   className="flex-1 resize-none border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
                   disabled={!activeToken || sending}
                 />
                 <button
                   onClick={handleSend}
                   disabled={!activeToken || sending || !prompt.trim()}
-                  className={`h-11 px-4 rounded-xl text-white inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"
-                  }`}
+                  className={`h-11 px-4 rounded-xl text-white inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"
+                    }`}
                 >
                   <Send className="w-4 h-4" /> Send
                 </button>

@@ -5,6 +5,7 @@ import {
   TrendingUp, 
   Mail, 
   Zap, 
+  Phone,
   RefreshCw, 
   Calendar,
   Download,
@@ -19,6 +20,7 @@ import TeamPerformanceCard from '../components/analytics/TeamPerformanceCard';
 import ContactLifecycleCard from '../components/analytics/ContactLifecycleCard';
 import EmailCampaignsCard from '../components/analytics/EmailCampaignsCard';
 import AutomationROICard from '../components/analytics/AutomationROICard';
+import CallMetricsCard from '../components/analytics/CallMetricsCard';
 
 const AdvancedAnalyticsPage = () => {
   const [activeTab, setActiveTab] = useState('sales-pipeline');
@@ -43,6 +45,7 @@ const AdvancedAnalyticsPage = () => {
     { id: 'contact-lifecycle', label: 'Contact Lifecycle', icon: TrendingUp },
     { id: 'email-campaigns', label: 'Email Campaigns', icon: Mail },
     { id: 'automation-roi', label: 'Automation ROI', icon: Zap },
+    { id: 'call-metrics', label: 'Call Metrics', icon: Phone },
   ];
 
   const handleRefresh = () => {
@@ -97,6 +100,8 @@ const AdvancedAnalyticsPage = () => {
         return <EmailCampaignsCard {...commonProps} />;
       case 'automation-roi':
         return <AutomationROICard {...commonProps} />;
+      case 'call-metrics':
+        return <CallMetricsCard {...commonProps} />;
       default:
         return null;
     }
