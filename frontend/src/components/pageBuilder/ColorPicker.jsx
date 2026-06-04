@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { Check } from 'lucide-react';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 // Comprehensive color palette organized by hue and shade
 const COLOR_PALETTE = [
@@ -57,6 +58,7 @@ export default function ColorPicker({ value, onChange, label, compact = false, a
   const pickerRef = useRef(null);
   const popupRef = useRef(null);
   const buttonRef = useRef(null);
+  useCloseAllModals(() => setIsOpen(false), isOpen);
   
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -213,4 +215,3 @@ export default function ColorPicker({ value, onChange, label, compact = false, a
     </div>
   );
 }
-

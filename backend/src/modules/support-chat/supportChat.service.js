@@ -305,7 +305,8 @@ const getDefaultInstructions = () => {
     "You are the analytics assistant for a CRM platform.",
     "Model the complete flow: LEAD -> MQL -> SQL -> OPPORTUNITY -> CUSTOMER -> EVANGELIST and DORMANT fallback.",
     "Prefer read-only SQL with explicit SELECT and safe filters.",
-    "When dealing with employee-specific requests, scope by company_id first.",
+    "When dealing with employee-specific requests, scope by company_id first (e.g. WHERE c.company_id = <tenant> AND c.assigned_emp_id = <emp>).",
+    "Never query contacts without filtering company_id on the contacts alias.",
     "When counting conversions, preserve stage semantics and avoid double-counting contacts.",
     "Schema truth: there is NO customers table. Customer means contacts rows with status = 'CUSTOMER'.",
     "Schema truth: contacts pipeline column is status (NOT stage). Never reference contacts.stage.",
@@ -321,109 +322,17 @@ export const health = async () => {
 };
 
 export const createSession = async ({ queryType = "mysql", systemInstructions = "", companyId }) => {
-  const dbUrl = buildSupportChatDbUrl(process.env.DATABASE_URL);
-  const insecureDbUrl = buildInsecureSupportChatDbUrl(process.env.DATABASE_URL);
-  const fullInstructions = [getDefaultInstructions(), systemInstructions].filter(Boolean).join(" ");
+  const fullInstructions = [
+    getDefaultInstructions(),
+    systemInstructions,
+    "The CRM backend executes all SQL. Never assume you can run queries yourself; only return SQL.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-  // Primary path: let support-chat introspect DB directly when DB URL exists.
-  if (dbUrl) {
-    let activeDbUrl = dbUrl;
-
-    try {
-      return await supportChatFetch("/sessions", {
-        method: "POST",
-        body: JSON.stringify({
-          query_type: queryType,
-          schema_context: [],
-          db_url: activeDbUrl,
-          system_instructions: fullInstructions,
-        }),
-      });
-    } catch (error) {
-      // Certificate-specific retry: keep encryption but skip CA verification when certs are unavailable.
-      if (isCertificateVerifyError(error) && insecureDbUrl && insecureDbUrl !== activeDbUrl) {
-        try {
-          const insecureSession = await supportChatFetch("/sessions", {
-            method: "POST",
-            body: JSON.stringify({
-              query_type: queryType,
-              schema_context: [],
-              db_url: insecureDbUrl,
-              system_instructions: fullInstructions,
-            }),
-          });
-
-          return {
-            ...insecureSession,
-            fallback_mode: "ssl_verify_disabled",
-            fallback_reason: error.message,
-          };
-        } catch (insecureError) {
-          if (!shouldFallbackToSchemaContext(insecureError)) {
-            throw insecureError;
-          }
-          activeDbUrl = insecureDbUrl;
-        }
-      }
-
-      if (!shouldFallbackToSchemaContext(error)) {
-        throw error;
-      }
-
-      const schemaContext = await getSchemaContext(companyId);
-
-      // Retry path: keep db_url and provide explicit schema_context to maximize chances
-      // of successful execution even when remote auto-introspection is flaky.
-      try {
-        const hybrid = await supportChatFetch("/sessions", {
-          method: "POST",
-          body: JSON.stringify({
-            query_type: queryType,
-            schema_context: schemaContext,
-            db_url: activeDbUrl,
-            system_instructions: fullInstructions,
-          }),
-        });
-
-        return {
-          ...hybrid,
-          fallback_mode: "schema_context_with_db_url",
-          fallback_reason: error.message,
-        };
-      } catch (hybridError) {
-        if (!shouldFallbackToSchemaContext(hybridError)) {
-          throw hybridError;
-        }
-      }
-
-      // Last-resort fallback: query-generation mode only.
-      const fallbackInstructions = [
-        fullInstructions,
-        "Database auto-discovery failed, so operate in query-generation mode using provided schema_context.",
-      ].join(" ");
-
-      const fallback = await supportChatFetch("/sessions", {
-        method: "POST",
-        body: JSON.stringify({
-          query_type: queryType,
-          schema_context: schemaContext,
-          db_url: null,
-          system_instructions: fallbackInstructions,
-        }),
-      });
-
-      return {
-        ...fallback,
-        has_db_connection: false,
-        fallback_mode: "schema_context",
-        fallback_reason: error.message,
-      };
-    }
-  }
-
-  // Query-generation only mode when no DB URL is configured.
   const schemaContext = await getSchemaContext(companyId);
-  return supportChatFetch("/sessions", {
+
+  const session = await supportChatFetch("/sessions", {
     method: "POST",
     body: JSON.stringify({
       query_type: queryType,
@@ -432,6 +341,12 @@ export const createSession = async ({ queryType = "mysql", systemInstructions = 
       system_instructions: fullInstructions,
     }),
   });
+
+  return {
+    ...session,
+    has_db_connection: true,
+    execution_mode: "crm_backend",
+  };
 };
 
 export const getSession = async (sessionId) => {
@@ -450,5 +365,24 @@ export const sendMessage = async (sessionId, payload) => {
   return supportChatFetch(`/sessions/${sessionId}/chat`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+};
+
+/** Ask support-chat to translate NL → SQL only (no execution, no insight). */
+export const translateMessage = async (sessionId, message) => {
+  return sendMessage(sessionId, {
+    message,
+    execute_query: false,
+    generate_insight: false,
+  });
+};
+
+/** Send CRM-executed rows back to support-chat for a natural-language answer. */
+export const insightFromResults = async (sessionId, { message, queryResult }) => {
+  return sendMessage(sessionId, {
+    message,
+    execute_query: false,
+    generate_insight: true,
+    query_result: queryResult,
   });
 };

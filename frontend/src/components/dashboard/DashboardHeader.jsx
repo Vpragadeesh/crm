@@ -17,7 +17,7 @@ const MobileSearchModal = memo(({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 sm:hidden">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      
+
       {/* Search Panel */}
       <div className="absolute top-0 left-0 right-0 bg-white p-4 shadow-xl">
         <GlobalSearch className="w-full" />
@@ -98,9 +98,8 @@ const NotificationItem = memo(({ notification, onMarkAsRead, onArchive }) => {
   return (
     <div
       onClick={handleClick}
-      className={`flex items-start gap-3 p-3 border-b border-gray-100 last:border-b-0 cursor-pointer transition-colors ${
-        notification.is_read ? 'bg-white hover:bg-gray-50' : 'bg-blue-50/50 hover:bg-blue-50'
-      }`}
+      className={`flex items-start gap-3 p-3 border-b border-gray-100 last:border-b-0 cursor-pointer transition-colors ${notification.is_read ? 'bg-white hover:bg-gray-50' : 'bg-blue-50/50 hover:bg-blue-50'
+        }`}
     >
       <div className="flex-shrink-0 mt-0.5 p-1.5 bg-gray-100 rounded-lg">
         {getNotificationIcon(notification.type)}
@@ -300,11 +299,10 @@ const UserMenuButton = memo(({ user, isOpen, onClick, isAdmin }) => (
       <p className="text-xs text-gray-500">{user?.department || user?.role}</p>
     </div>
     <div className="relative">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-semibold text-sm ${
-        isAdmin 
-          ? 'bg-gradient-to-br from-amber-500 to-orange-600' 
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-semibold text-sm ${isAdmin
+          ? 'bg-gradient-to-br from-amber-500 to-orange-600'
           : 'bg-gradient-to-br from-sky-400 to-blue-600'
-      }`}>
+        }`}>
         {getInitials(user?.name)}
       </div>
       <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
@@ -331,7 +329,7 @@ const DashboardHeader = memo(({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const userMenuRef = useRef(null);
-  
+
   // Theme colors based on admin status
   const headerBorderColor = isAdmin ? 'border-orange-100' : 'border-gray-100';
 
@@ -360,78 +358,77 @@ const DashboardHeader = memo(({
 
   return (
     <>
-    <MobileSearchModal isOpen={mobileSearchOpen} onClose={closeMobileSearch} />
-    <header className={`sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b ${headerBorderColor}`}>
-      <div className="flex items-center justify-between h-14 px-4 lg:px-6">
-        {/* Left - Mobile Menu & Title */}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onMobileMenuOpen}
-            className={`lg:hidden p-2 rounded-lg ${isAdmin ? 'hover:bg-orange-50' : 'hover:bg-gray-100'}`}
-            aria-label="Open mobile menu"
-          >
-            <Menu className={`w-5 h-5 ${isAdmin ? 'text-orange-600' : 'text-gray-600'}`} />
-          </button>
+      <MobileSearchModal isOpen={mobileSearchOpen} onClose={closeMobileSearch} />
+      <header className={`sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b ${headerBorderColor}`}>
+        <div className="flex items-center justify-between h-14 px-4 lg:px-6">
+          {/* Left - Mobile Menu & Title */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onMobileMenuOpen}
+              className={`lg:hidden p-2 rounded-lg ${isAdmin ? 'hover:bg-orange-50' : 'hover:bg-gray-100'}`}
+              aria-label="Open mobile menu"
+            >
+              <Menu className={`w-5 h-5 ${isAdmin ? 'text-orange-600' : 'text-gray-600'}`} />
+            </button>
 
-          {/* Page Title - Desktop */}
-          <div className="hidden md:block">
-            <h1 className="text-lg font-semibold text-gray-900">
-              {getPageTitle(activeView, activeStage)}
-            </h1>
+            {/* Page Title - Desktop */}
+            <div className="hidden md:block">
+              <h1 className="text-lg font-semibold text-gray-900">
+                {getPageTitle(activeView, activeStage)}
+              </h1>
+            </div>
           </div>
-        </div>
 
-        {/* Center - Global Search (Desktop) */}
-        <div className="hidden sm:block flex-1 max-w-md mx-4 lg:mx-8">
-          <GlobalSearch />
-        </div>
+          {/* Center - Global Search (Desktop) */}
+          <div className="hidden sm:block flex-1 max-w-md mx-4 lg:mx-8">
+            <GlobalSearch />
+          </div>
 
-        {/* Right - Search (Mobile), Notifications & User Menu */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Mobile Search Button */}
-          <button
-            onClick={openMobileSearch}
-            className="sm:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            aria-label="Search contacts"
-          >
-            <Search className="w-5 h-5 text-gray-600" />
-          </button>
+          {/* Right - Search (Mobile), Notifications & User Menu */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Mobile Search Button */}
+            <button
+              onClick={openMobileSearch}
+              className="sm:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Search contacts"
+            >
+              <Search className="w-5 h-5 text-gray-600" />
+            </button>
 
-          <NotificationBell />
+            <NotificationBell />
 
-          <button
-            onClick={() => navigate(isAdmin ? '/admin/chat' : '/chat')}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-              isAdmin
-                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
-            }`}
-            title="Open AI Assistant"
-          >
-            <span>Ask AI</span>
-          </button>
+            <button
+              onClick={() => navigate(isAdmin ? '/admin/chat' : '/chat')}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${isAdmin
+                  ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                  : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
+                }`}
+              title="Open Chat support"
+            >
+              <span>Ask AI</span>
+            </button>
 
-          {/* User Profile Dropdown */}
-          <div className="relative" ref={userMenuRef}>
-            <UserMenuButton
-              user={user}
-              isOpen={userMenuOpen}
-              onClick={toggleUserMenu}
-              isAdmin={isAdmin}
-            />
-
-            {/* Dropdown Menu */}
-            {userMenuOpen && (
-              <Profile 
+            {/* User Profile Dropdown */}
+            <div className="relative" ref={userMenuRef}>
+              <UserMenuButton
                 user={user}
-                logout={logout}
-                setUserMenuOpen={setUserMenuOpen}
+                isOpen={userMenuOpen}
+                onClick={toggleUserMenu}
+                isAdmin={isAdmin}
               />
-            )}
+
+              {/* Dropdown Menu */}
+              {userMenuOpen && (
+                <Profile
+                  user={user}
+                  logout={logout}
+                  setUserMenuOpen={setUserMenuOpen}
+                />
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
     </>
   );
 });

@@ -7,6 +7,7 @@ import { EmailCacheProvider } from './context/EmailCacheContext';
 import { ContactsCacheProvider } from './context/ContactsCacheContext';
 import { SessionsCacheProvider } from './context/SessionsCacheContext';
 import { SocketProvider, useSocketEvent } from './context/SocketContext';
+import { ModalProvider } from './context/ModalContext';
 import { useRoutePrefetch } from './hooks/useRoutePrefetch';
 import { lazy, Suspense, Component, memo, useCallback, useState } from 'react';
 import { IncomingCallBanner } from './components/discuss/LiveKitCallView';
@@ -277,6 +278,31 @@ const GlobalIncomingCallOverlay = () => {
 function App() {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
+  // Validate required environment variables
+  if (!googleClientId) {
+    console.error('❌ FATAL ERROR: VITE_GOOGLE_CLIENT_ID is not set in environment variables');
+    console.error('💡 Please check your .env file and ensure VITE_GOOGLE_CLIENT_ID is set.');
+    console.error('   See .env.example for reference.');
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-100 via-red-50 to-red-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+          <div className="text-red-500 mb-4">
+            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Configuration Error</h2>
+          <p className="text-gray-600 mb-4">Google OAuth Client ID is missing.</p>
+          <p className="text-sm text-gray-500">Please check your .env file and ensure VITE_GOOGLE_CLIENT_ID is set.</p>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('✅ Google OAuth Provider initialized');
+  console.log(`   - Client ID: ${googleClientId.substring(0, 20)}...`);
+
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
       <AuthProvider>
@@ -286,216 +312,218 @@ function App() {
               <ContactsCacheProvider>
                 <SessionsCacheProvider>
                   <SocketProvider>
-                  <BrowserRouter>
-                    <RoutePrefetchWrapper>
-                      <GlobalIncomingCallOverlay />
-                      <Routes>
-                        {/* ===== PUBLIC ROUTES ===== */}
-                        <Route
-                          path="/login"
-                          element={
-                            <PublicRoute>
-                              <SuspenseWrapper>
-                                <LoginPage />
-                              </SuspenseWrapper>
-                            </PublicRoute>
-                          }
-                        />
-                        
-                        {/* Public appointment acceptance route (no auth) */}
-                        <Route
-                          path="/accept/:token"
-                          element={
-                            <SuspenseWrapper>
-                              <AcceptAppointmentPage />
-                            </SuspenseWrapper>
-                          }
-                        />
-                        
-                        <Route
-                          path="/onboarding"
-                          element={
-                            <OnboardingRoute>
-                              <SuspenseWrapper>
-                                <OnboardingPage />
-                              </SuspenseWrapper>
-                            </OnboardingRoute>
-                          }
-                        />
+                    <ModalProvider>
+                      <BrowserRouter>
+                        <RoutePrefetchWrapper>
+                          <GlobalIncomingCallOverlay />
+                          <Routes>
+                            {/* ===== PUBLIC ROUTES ===== */}
+                            <Route
+                              path="/login"
+                              element={
+                                <PublicRoute>
+                                  <SuspenseWrapper>
+                                    <LoginPage />
+                                  </SuspenseWrapper>
+                                </PublicRoute>
+                              }
+                            />
 
-                        {/* ===== EMPLOYEE DASHBOARD ROUTES ===== */}
-                        <Route
-                          element={
-                            <ProtectedRoute>
-                              <SuspenseWrapper>
-                                <DashboardLayout />
-                              </SuspenseWrapper>
-                            </ProtectedRoute>
-                          }
-                        >
-                          {/* Contact Stage Routes */}
-                          <Route path="/contacts/:stage" element={<NestedSuspense><ContactsPage /></NestedSuspense>} />
-                          
-                          {/* Session/Followup Stage Routes */}
-                          <Route path="/sessions/:stage" element={<NestedSuspense><StageFollowupsPage /></NestedSuspense>} />
-                          
-                          {/* Workspace View Routes */}
-                          <Route path="/analytics" element={<NestedSuspense><AnalyticsPage /></NestedSuspense>} />
-                          <Route path="/calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
-                          <Route path="/gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
-                          
-                          {/* Templates — unified landing pages + email templates */}
-                          <Route path="/templates" element={<NestedSuspense><TemplatesPage /></NestedSuspense>} />
+                            {/* Public appointment acceptance route (no auth) */}
+                            <Route
+                              path="/accept/:token"
+                              element={
+                                <SuspenseWrapper>
+                                  <AcceptAppointmentPage />
+                                </SuspenseWrapper>
+                              }
+                            />
 
-                          {/* Landing Page Builder (accessed from /templates?tab=landing) */}
-                          <Route path="/pages" element={<Navigate to="/templates?tab=landing" replace />} />
-                          <Route path="/pages/new" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
-                          <Route path="/pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
-                          <Route path="/pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
+                            <Route
+                              path="/onboarding"
+                              element={
+                                <OnboardingRoute>
+                                  <SuspenseWrapper>
+                                    <OnboardingPage />
+                                  </SuspenseWrapper>
+                                </OnboardingRoute>
+                              }
+                            />
 
-                          {/* Discuss (Team Chat) */}
-                          <Route path="/discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
+                            {/* ===== EMPLOYEE DASHBOARD ROUTES ===== */}
+                            <Route
+                              element={
+                                <ProtectedRoute>
+                                  <SuspenseWrapper>
+                                    <DashboardLayout />
+                                  </SuspenseWrapper>
+                                </ProtectedRoute>
+                              }
+                            >
+                              {/* Contact Stage Routes */}
+                              <Route path="/contacts/:stage" element={<NestedSuspense><ContactsPage /></NestedSuspense>} />
 
-                          {/* AI Assistant */}
-                          <Route path="/chat" element={<NestedSuspense><AIAssistantPage /></NestedSuspense>} />
+                              {/* Session/Followup Stage Routes */}
+                              <Route path="/sessions/:stage" element={<NestedSuspense><StageFollowupsPage /></NestedSuspense>} />
 
-                          {/* Automations */}
-                          <Route path="/automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
-                          <Route path="/automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
-                          <Route path="/automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
-                          <Route path="/automations/:id/logs" element={<NestedSuspense><AutomationLogsPage /></NestedSuspense>} />
+                              {/* Workspace View Routes */}
+                              <Route path="/analytics" element={<NestedSuspense><AnalyticsPage /></NestedSuspense>} />
+                              <Route path="/calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
+                              <Route path="/gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
 
-                          {/* Sequences */}
-                          <Route path="/sequences" element={<NestedSuspense><SequencesPage /></NestedSuspense>} />
+                              {/* Templates — unified landing pages + email templates */}
+                              <Route path="/templates" element={<NestedSuspense><TemplatesPage /></NestedSuspense>} />
 
-                          {/* A/B Tests */}
-                          <Route path="/ab-tests" element={<NestedSuspense><ABTestsPage /></NestedSuspense>} />
+                              {/* Landing Page Builder (accessed from /templates?tab=landing) */}
+                              <Route path="/pages" element={<Navigate to="/templates?tab=landing" replace />} />
+                              <Route path="/pages/new" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
+                              <Route path="/pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
+                              <Route path="/pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
 
-                          {/* Advanced Analytics */}
-                          <Route path="/advanced-analytics" element={<NestedSuspense><AdvancedAnalyticsPage /></NestedSuspense>} />
-                        </Route>
+                              {/* Discuss (Team Chat) */}
+                              <Route path="/discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
 
-                        {/* ===== ADMIN DASHBOARD ROUTES ===== */}
-                        <Route
-                          path="/admin"
-                          element={
-                            <AdminRoute>
-                              <SuspenseWrapper>
-                                <AdminLayout />
-                              </SuspenseWrapper>
-                            </AdminRoute>
-                          }
-                        >
-                          {/* Default redirect to team */}
-                          <Route index element={<Navigate to="/admin/team" replace />} />
-                          
-                          {/* Team Management - Admin only */}
-                          <Route path="team" element={<NestedSuspense><AdminTeamPage /></NestedSuspense>} />
-                          
-                          {/* Contact Stage Routes - Same as employee */}
-                          <Route path="contacts/:stage" element={<NestedSuspense><ContactsPage /></NestedSuspense>} />
-                          
-                          {/* Session/Followup Stage Routes - Same as employee */}
-                          <Route path="sessions/:stage" element={<NestedSuspense><StageFollowupsPage /></NestedSuspense>} />
-                          
-                          {/* Workspace View Routes - Admin uses company-wide analytics */}
-                          <Route path="analytics" element={<NestedSuspense><AdminAnalyticsPage /></NestedSuspense>} />
-                          <Route path="calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
-                          <Route path="gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
-                          
-                          {/* Templates — unified landing pages + email templates (Admin) */}
-                          <Route path="templates" element={<NestedSuspense><TemplatesPage /></NestedSuspense>} />
+                              {/* Chat support */}
+                              <Route path="/chat" element={<NestedSuspense><AIAssistantPage /></NestedSuspense>} />
 
-                          {/* Landing Page Builder - Admin (accessed from /admin/templates?tab=landing) */}
-                          <Route path="pages" element={<Navigate to="/admin/templates?tab=landing" replace />} />
-                          <Route path="pages/new" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
-                          <Route path="pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
-                          <Route path="pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
+                              {/* Automations */}
+                              <Route path="/automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
+                              <Route path="/automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
+                              <Route path="/automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
+                              <Route path="/automations/:id/logs" element={<NestedSuspense><AutomationLogsPage /></NestedSuspense>} />
 
-                          {/* Discuss (Team Chat) - Admin */}
-                          <Route path="discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
+                              {/* Sequences */}
+                              <Route path="/sequences" element={<NestedSuspense><SequencesPage /></NestedSuspense>} />
 
-                          {/* AI Assistant - Admin */}
-                          <Route path="chat" element={<NestedSuspense><AIAssistantPage /></NestedSuspense>} />
+                              {/* A/B Tests */}
+                              <Route path="/ab-tests" element={<NestedSuspense><ABTestsPage /></NestedSuspense>} />
 
-                          {/* Automations - Admin */}
-                          <Route path="automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
-                          <Route path="automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
-                          <Route path="automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
-                          <Route path="automations/:id/logs" element={<NestedSuspense><AutomationLogsPage /></NestedSuspense>} />
+                              {/* Advanced Analytics */}
+                              <Route path="/advanced-analytics" element={<NestedSuspense><AdvancedAnalyticsPage /></NestedSuspense>} />
+                            </Route>
 
-                          {/* Sequences - Admin */}
-                          <Route path="sequences" element={<NestedSuspense><SequencesPage /></NestedSuspense>} />
+                            {/* ===== ADMIN DASHBOARD ROUTES ===== */}
+                            <Route
+                              path="/admin"
+                              element={
+                                <AdminRoute>
+                                  <SuspenseWrapper>
+                                    <AdminLayout />
+                                  </SuspenseWrapper>
+                                </AdminRoute>
+                              }
+                            >
+                              {/* Default redirect to team */}
+                              <Route index element={<Navigate to="/admin/team" replace />} />
 
-                          {/* A/B Tests - Admin */}
-                          <Route path="ab-tests" element={<NestedSuspense><ABTestsPage /></NestedSuspense>} />
+                              {/* Team Management - Admin only */}
+                              <Route path="team" element={<NestedSuspense><AdminTeamPage /></NestedSuspense>} />
 
-                          {/* Advanced Analytics - Admin */}
-                          <Route path="advanced-analytics" element={<NestedSuspense><AdvancedAnalyticsPage /></NestedSuspense>} />
-                          
-                          {/* Settings */}
-                          <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />
-                          
-                          {/* Followups for individual contact (admin) */}
-                          <Route path="followups/:contactId" element={<NestedSuspense><FollowupsPage /></NestedSuspense>} />
-                        </Route>
+                              {/* Contact Stage Routes - Same as employee */}
+                              <Route path="contacts/:stage" element={<NestedSuspense><ContactsPage /></NestedSuspense>} />
 
-                        {/* ===== SHARED AUTHENTICATED ROUTES ===== */}
-                        <Route
-                          path="/settings"
-                          element={
-                            <AuthenticatedRoute>
-                              <SuspenseWrapper>
-                                <SettingsPage />
-                              </SuspenseWrapper>
-                            </AuthenticatedRoute>
-                          }
-                        />
+                              {/* Session/Followup Stage Routes - Same as employee */}
+                              <Route path="sessions/:stage" element={<NestedSuspense><StageFollowupsPage /></NestedSuspense>} />
 
-                        <Route
-                          path="/followups/:contactId"
-                          element={
-                            <AuthenticatedRoute>
-                              <SuspenseWrapper>
-                                <FollowupsPage />
-                              </SuspenseWrapper>
-                            </AuthenticatedRoute>
-                          }
-                        />
+                              {/* Workspace View Routes - Admin uses company-wide analytics */}
+                              <Route path="analytics" element={<NestedSuspense><AdminAnalyticsPage /></NestedSuspense>} />
+                              <Route path="calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
+                              <Route path="gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
 
-                        {/* Backward-compatible assistant path redirects */}
-                        <Route path="/assistant" element={<Navigate to="/chat" replace />} />
-                        <Route path="/admin/assistant" element={<Navigate to="/chat" replace />} />
+                              {/* Templates — unified landing pages + email templates (Admin) */}
+                              <Route path="templates" element={<NestedSuspense><TemplatesPage /></NestedSuspense>} />
 
-                        {/* ===== REDIRECTS ===== */}
-                        <Route path="/dashboard" element={<Navigate to="/contacts/lead" replace />} />
-                        <Route path="/contacts" element={<Navigate to="/contacts/lead" replace />} />
-                        
-                        {/* ===== PUBLIC PAGE VIEW (No auth required) ===== */}
-                        <Route 
-                          path="/p/:slug" 
-                          element={
-                            <SuspenseWrapper>
-                              <PublicPageView />
-                            </SuspenseWrapper>
-                          } 
-                        />
-                        
-                        {/* ===== LANDING PAGE ===== */}
-                        <Route 
-                          path="/" 
-                          element={
-                            <SuspenseWrapper>
-                              <LandingPage />
-                            </SuspenseWrapper>
-                          } 
-                        />
-                        
-                        {/* ===== CATCH ALL ===== */}
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                      </Routes>
-                    </RoutePrefetchWrapper>
-                  </BrowserRouter>
+                              {/* Landing Page Builder - Admin (accessed from /admin/templates?tab=landing) */}
+                              <Route path="pages" element={<Navigate to="/admin/templates?tab=landing" replace />} />
+                              <Route path="pages/new" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
+                              <Route path="pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
+                              <Route path="pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
+
+                              {/* Discuss (Team Chat) - Admin */}
+                              <Route path="discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
+
+                              {/* Chat support - Admin */}
+                              <Route path="chat" element={<NestedSuspense><AIAssistantPage /></NestedSuspense>} />
+
+                              {/* Automations - Admin */}
+                              <Route path="automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
+                              <Route path="automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
+                              <Route path="automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
+                              <Route path="automations/:id/logs" element={<NestedSuspense><AutomationLogsPage /></NestedSuspense>} />
+
+                              {/* Sequences - Admin */}
+                              <Route path="sequences" element={<NestedSuspense><SequencesPage /></NestedSuspense>} />
+
+                              {/* A/B Tests - Admin */}
+                              <Route path="ab-tests" element={<NestedSuspense><ABTestsPage /></NestedSuspense>} />
+
+                              {/* Advanced Analytics - Admin */}
+                              <Route path="advanced-analytics" element={<NestedSuspense><AdvancedAnalyticsPage /></NestedSuspense>} />
+
+                              {/* Settings */}
+                              <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />
+
+                              {/* Followups for individual contact (admin) */}
+                              <Route path="followups/:contactId" element={<NestedSuspense><FollowupsPage /></NestedSuspense>} />
+                            </Route>
+
+                            {/* ===== SHARED AUTHENTICATED ROUTES ===== */}
+                            <Route
+                              path="/settings"
+                              element={
+                                <AuthenticatedRoute>
+                                  <SuspenseWrapper>
+                                    <SettingsPage />
+                                  </SuspenseWrapper>
+                                </AuthenticatedRoute>
+                              }
+                            />
+
+                            <Route
+                              path="/followups/:contactId"
+                              element={
+                                <AuthenticatedRoute>
+                                  <SuspenseWrapper>
+                                    <FollowupsPage />
+                                  </SuspenseWrapper>
+                                </AuthenticatedRoute>
+                              }
+                            />
+
+                            {/* Backward-compatible assistant path redirects */}
+                            <Route path="/assistant" element={<Navigate to="/chat" replace />} />
+                            <Route path="/admin/assistant" element={<Navigate to="/chat" replace />} />
+
+                            {/* ===== REDIRECTS ===== */}
+                            <Route path="/dashboard" element={<Navigate to="/contacts/lead" replace />} />
+                            <Route path="/contacts" element={<Navigate to="/contacts/lead" replace />} />
+
+                            {/* ===== PUBLIC PAGE VIEW (No auth required) ===== */}
+                            <Route
+                              path="/p/:slug"
+                              element={
+                                <SuspenseWrapper>
+                                  <PublicPageView />
+                                </SuspenseWrapper>
+                              }
+                            />
+
+                            {/* ===== LANDING PAGE ===== */}
+                            <Route
+                              path="/"
+                              element={
+                                <SuspenseWrapper>
+                                  <LandingPage />
+                                </SuspenseWrapper>
+                              }
+                            />
+
+                            {/* ===== CATCH ALL ===== */}
+                            <Route path="*" element={<Navigate to="/" replace />} />
+                          </Routes>
+                        </RoutePrefetchWrapper>
+                      </BrowserRouter>
+                    </ModalProvider>
                   </SocketProvider>
                 </SessionsCacheProvider>
               </ContactsCacheProvider>

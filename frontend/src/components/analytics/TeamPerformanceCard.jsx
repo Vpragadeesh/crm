@@ -103,7 +103,7 @@ const TeamPerformanceCard = ({ filters, onLoadTime }) => {
                     <Phone className="w-4 h-4 text-blue-500" />
                     <span className="text-sm font-medium text-gray-900">{emp.total_calls}</span>
                   </div>
-                  <div className="text-xs text-gray-500">{Math.round(emp.avg_call_duration / 60)}m avg</div>
+                  <div className="text-xs text-gray-500">{Math.round((Number(emp.avg_call_duration) || 0) / 60)}m avg</div>
                 </td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1">
@@ -111,9 +111,9 @@ const TeamPerformanceCard = ({ filters, onLoadTime }) => {
                     <span className="text-sm font-medium text-gray-900">{emp.total_emails_sent}</span>
                   </div>
                   <div className="text-xs text-gray-500">
-                    {emp.total_emails_sent > 0 
-                      ? `${Math.round((emp.emails_opened / emp.total_emails_sent) * 100)}% open`
-                      : '0% open'
+                    {Number(emp.total_emails_sent) > 0 
+                      ? `${Math.round((Number(emp.emails_clicked || 0) / Number(emp.total_emails_sent)) * 100)}% clicked`
+                      : '0% clicked'
                     }
                   </div>
                 </td>
@@ -122,17 +122,17 @@ const TeamPerformanceCard = ({ filters, onLoadTime }) => {
                     <Star className="w-4 h-4 text-yellow-500" />
                     <span className="text-sm font-medium text-gray-900">{emp.total_sessions}</span>
                   </div>
-                  <div className="text-xs text-gray-500">{emp.avg_session_rating.toFixed(1)} avg rating</div>
+                  <div className="text-xs text-gray-500">{Number(emp.avg_session_rating || 0).toFixed(1)} avg rating</div>
                 </td>
                 <td className="px-4 py-3 text-center">
                   <div className="text-sm font-medium text-gray-900">{emp.total_deals}</div>
-                  <div className="text-xs text-gray-500">${Math.round(emp.avg_deal_value).toLocaleString()} avg</div>
+                  <div className="text-xs text-gray-500">${Math.round(Number(emp.avg_deal_value) || 0).toLocaleString()} avg</div>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <DollarSign className="w-4 h-4 text-green-500" />
                     <span className="text-sm font-bold text-green-600">
-                      ${Math.round(emp.total_deal_value).toLocaleString()}
+                      ${Math.round(Number(emp.total_deal_value) || 0).toLocaleString()}
                     </span>
                   </div>
                 </td>

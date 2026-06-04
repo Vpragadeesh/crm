@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { X, Send, Loader2, AlertCircle, Mail, ExternalLink } from 'lucide-react';
 import { sendEmail, getConnectionStatus, getConnectUrl } from '../../services/emailService';
 import TemplatePicker from '../email-templates/TemplatePicker';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 /**
  * EmailComposeModal
  * Modal for composing and sending emails to contacts via Gmail
  */
 const EmailComposeModal = ({ isOpen, contact, onClose, onSuccess }) => {
+  useCloseAllModals(onClose, isOpen);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [cc, setCc] = useState('');

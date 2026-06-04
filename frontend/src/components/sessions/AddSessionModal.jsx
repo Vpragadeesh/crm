@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { X, Phone, Mail, Users, Video, Star } from 'lucide-react';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 const AddSessionModal = ({ isOpen, contact, onClose, onSubmit, loading = false }) => {
+  useCloseAllModals(onClose, isOpen);
   const [formData, setFormData] = useState({
     rating: 5,
     sessionStatus: 'CONNECTED',

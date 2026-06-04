@@ -11,7 +11,7 @@ import * as advancedAnalyticsService from "./advancedAnalytics.service.js";
  */
 export const getSalesPipeline = async (req, res, next) => {
   try {
-    const companyId = req.user.company_id;
+    const companyId = req.user.companyId;
     const { startDate, endDate, employeeId } = req.query;
 
     const filters = {};
@@ -38,7 +38,7 @@ export const getSalesPipeline = async (req, res, next) => {
  */
 export const getTeamPerformance = async (req, res, next) => {
   try {
-    const companyId = req.user.company_id;
+    const companyId = req.user.companyId;
     const { startDate, endDate, employeeId } = req.query;
 
     const filters = {};
@@ -65,7 +65,7 @@ export const getTeamPerformance = async (req, res, next) => {
  */
 export const getContactLifecycle = async (req, res, next) => {
   try {
-    const companyId = req.user.company_id;
+    const companyId = req.user.companyId;
     const { startDate, endDate } = req.query;
 
     const filters = {};
@@ -91,7 +91,7 @@ export const getContactLifecycle = async (req, res, next) => {
  */
 export const getEmailCampaigns = async (req, res, next) => {
   try {
-    const companyId = req.user.company_id;
+    const companyId = req.user.companyId;
     const { startDate, endDate, templateId } = req.query;
 
     const filters = {};
@@ -118,7 +118,7 @@ export const getEmailCampaigns = async (req, res, next) => {
  */
 export const getAutomationROI = async (req, res, next) => {
   try {
-    const companyId = req.user.company_id;
+    const companyId = req.user.companyId;
     const { startDate, endDate } = req.query;
 
     const filters = {};
@@ -126,6 +126,32 @@ export const getAutomationROI = async (req, res, next) => {
     if (endDate) filters.endDate = endDate;
 
     const data = await advancedAnalyticsService.getAutomationROI(companyId, filters);
+
+    res.json({
+      success: true,
+      data,
+      filters,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get call and telephony metrics
+ */
+export const getCallMetrics = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const { startDate, endDate, employeeId } = req.query;
+
+    const filters = {};
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
+    if (employeeId) filters.employeeId = parseInt(employeeId, 10);
+
+    const data = await advancedAnalyticsService.getCallMetrics(companyId, filters);
 
     res.json({
       success: true,

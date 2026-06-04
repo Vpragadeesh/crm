@@ -4,6 +4,7 @@ import {
   MousePointerClick, MessageSquareReply, Eye, Users, BarChart3
 } from 'lucide-react';
 import * as abTestService from '../../services/abTestService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 /* ── metric card ─────────────────────────────────── */
 function MetricCard({ icon: Icon, label, valueA, valueB, rateA, rateB, winner }) {
@@ -120,6 +121,7 @@ function RecipientTable({ recipients }) {
 
 /* ── main modal ──────────────────────────────────── */
 export default function ABTestResultsModal({ test, onClose }) {
+  useCloseAllModals(onClose);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);

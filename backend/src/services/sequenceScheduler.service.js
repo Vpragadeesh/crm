@@ -61,9 +61,18 @@ const hasContactReplied = async (empId, contactEmail, enrolledAt) => {
     // Gmail search query: messages FROM the contact AFTER enrollment date
     const unixTs = Math.floor(new Date(enrolledAt).getTime() / 1000);
     const results = await gmailService.searchMessages(empId, `from:${contactEmail} after:${unixTs}`, {
-      maxResults: 1,
+      maxResults: 5,
     });
-    return Array.isArray(results) && results.length > 0;
+    // searchMessages returns { messages: [], nextPageToken }
+    const messages = results?.messages || [];
+    
+    // Filter to find actual replies (subject starts with "Re:" or "RE:")
+    const actualReplies = messages.filter(msg => {
+      const subject = msg.subject || '';
+      return subject.toLowerCase().startsWith('re:');
+    });
+    
+    return actualReplies.length > 0;
   } catch {
     // Gmail not connected or search failed — assume no reply, continue sequence
     return false;
@@ -286,12 +295,16 @@ const tick = async () => {
 
     // Pass 3: check for replies on A/B test emails
     try {
+      console.log(`🔍 Running A/B test reply check...`);
       const abReplies = await checkAbTestReplies();
       if (abReplies > 0) {
         console.log(`📬 A/B test reply check: ${abReplies} reply(ies) detected`);
+      } else {
+        console.log(`📬 A/B test reply check: No new replies detected`);
       }
     } catch (err) {
       console.error("⚠️ A/B test reply check error:", err.message);
+      console.error(err.stack);
     }
   } catch (err) {
     console.error("❌ Sequence scheduler tick error:", err.message);

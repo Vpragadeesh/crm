@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import * as seqService from '../../services/sequenceService';
 import { getTemplates } from '../../services/emailTemplateService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 /* ── default blank step ─────────────────────────── */
 const blankStep = () => ({
@@ -120,6 +121,7 @@ function StepRow({ step, index, total, onChange, onRemove, onMoveUp, onMoveDown,
 /* ── modal ───────────────────────────────────────── */
 export default function SequenceBuilderModal({ sequence = null, onClose, onSaved }) {
   const isEdit = !!sequence;
+  useCloseAllModals(onClose);
 
   const [name, setName]           = useState('');
   const [description, setDesc]    = useState('');

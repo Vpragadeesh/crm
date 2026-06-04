@@ -6,12 +6,29 @@ import { db } from "../config/db.js";
  * Handles OAuth flow and token management for employee email sending
  */
 
+// Validate required environment variables at module load
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/auth/google/callback";
+
+if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
+  console.error('❌ FATAL ERROR: Missing required Google OAuth environment variables');
+  console.error(`   - GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID ? '✅ Set' : '❌ Missing'}`);
+  console.error(`   - GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET ? '✅ Set' : '❌ Missing'}`);
+  console.error(`   - GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI ? '✅ Set' : '❌ Missing'}`);
+  throw new Error('GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI must be set in environment variables');
+}
+
 // OAuth2 Client Configuration
 const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/emails/callback"
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_URI
 );
+
+console.log('✅ Google OAuth2 Client initialized for Gmail/Calendar');
+console.log(`   - Client ID: ${GOOGLE_CLIENT_ID.substring(0, 20)}...`);
+console.log(`   - Redirect URI: ${GOOGLE_REDIRECT_URI}`);
 
 // Required scopes for full Gmail + Calendar access
 const SCOPES = [
@@ -26,16 +43,35 @@ const SCOPES = [
 ];
 
 /**
- * Generate OAuth URL for email authorization
+ * Generate OAuth URL for email authorization using URLSearchParams
  * User must authorize the app to send emails on their behalf
  */
 export const getAuthUrl = (empId) => {
-  return oauth2Client.generateAuthUrl({
-    access_type: "offline", // Get refresh token
-    scope: SCOPES,
-    prompt: "consent", // Force consent screen to get refresh token
-    state: empId.toString(), // Pass employee ID in state
+  // Validate environment variables again before generating URL
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
+    throw new Error('Cannot generate OAuth URL: Missing required environment variables');
+  }
+
+  // Build OAuth URL using URLSearchParams for proper encoding
+  const baseUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: 'code',
+    scope: SCOPES.join(' '),
+    access_type: 'offline',
+    prompt: 'consent',
+    state: empId.toString(),
   });
+
+  const authUrl = `${baseUrl}?${params.toString()}`;
+  
+  console.log(`📧 Generated OAuth URL for employee ${empId}`);
+  console.log(`   - Client ID: ${GOOGLE_CLIENT_ID.substring(0, 20)}...`);
+  console.log(`   - Redirect URI: ${GOOGLE_REDIRECT_URI}`);
+  console.log(`   - Scopes: ${SCOPES.length} scopes`);
+  
+  return authUrl;
 };
 
 /**

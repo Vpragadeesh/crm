@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import TemplatePicker from '../email-templates/TemplatePicker';
 import { X, Minus, Maximize2, Minimize2, Send, Paperclip, Smile, Link2, Trash2, Bold, Italic, Underline, AlertCircle, ExternalLink, Loader2, Save } from 'lucide-react';
 import { sendEmail, getConnectionStatus, getConnectUrl, createGmailDraft, updateGmailDraft, deleteGmailDraft, sendGmailDraft } from '../../services/emailService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 //nishithaaa
 const EMOJI_LIST = [
   '😀', '😃', '😄', '😁', '😊', '🙂', '😉', '😍',
@@ -70,6 +71,7 @@ const EmailComposer = ({
     subject: '',
     body: '',
   });
+  useCloseAllModals(onClose, isOpen);
 
   const fileInputRef = useRef(null);
   const bodyRef = useRef(null);

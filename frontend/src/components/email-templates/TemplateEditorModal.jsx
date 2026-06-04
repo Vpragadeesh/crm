@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { X, Variable, ChevronDown, Save, Loader2 } from 'lucide-react';
 import * as templateService from '../../services/emailTemplateService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 /* =====================================================
    CONSTANTS
@@ -77,6 +78,7 @@ VariableInserter.displayName = 'VariableInserter';
 ===================================================== */
 const TemplateEditorModal = ({ template, onClose }) => {
   const isEdit = !!template;
+  useCloseAllModals(onClose);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [variables, setVariables] = useState([]);
@@ -172,13 +174,6 @@ const TemplateEditorModal = ({ template, onClose }) => {
       setSaving(false);
     }
   };
-
-  /* ---------- Close on Escape ---------- */
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose(false); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

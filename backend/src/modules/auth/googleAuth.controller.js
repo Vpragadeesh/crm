@@ -2,7 +2,15 @@ import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
 import * as employeeRepo from "../employees/employee.repo.js";
 
+// Validate required environment variables
+if (!process.env.GOOGLE_CLIENT_ID) {
+  throw new Error('GOOGLE_CLIENT_ID must be set in environment variables');
+}
+
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+console.log('✅ Google Auth Controller initialized');
+console.log(`   - Client ID: ${process.env.GOOGLE_CLIENT_ID.substring(0, 20)}...`);
 
 export const googleLogin = async (req, res, next) => {
   try {
@@ -21,6 +29,8 @@ export const googleLogin = async (req, res, next) => {
 
     const payload = ticket.getPayload();
     const { email, name, picture } = payload;
+
+    console.log(`🔐 Google login attempt: ${email}`);
 
     // Check if employee exists
     let employee = await employeeRepo.getByEmail(email);

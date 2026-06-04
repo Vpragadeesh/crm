@@ -367,4 +367,15 @@ router.get(
   advancedAnalyticsController.getAutomationROI
 );
 
+/**
+ * @route   GET /analytics/call-metrics
+ * @desc    Get call and telephony metrics
+ * @access  Employee
+ */
+router.get(
+  "/call-metrics",
+  authenticateEmployee,
+  advancedAnalyticsController.getCallMetrics
+);
+
 export default router;

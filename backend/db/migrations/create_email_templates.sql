@@ -35,3 +35,27 @@ CREATE TABLE IF NOT EXISTS email_templates (
   INDEX idx_tpl_stage     (target_stage),
   INDEX idx_tpl_active    (is_active)
 );
+
+-- =====================================================
+-- DEFAULT A/B TEST EMAIL TEMPLATE
+-- Template with CTA link for click tracking
+-- =====================================================
+
+-- Company Introduction CTA Template
+INSERT INTO email_templates (company_id, created_by, name, subject, body, category, target_stage, is_active)
+VALUES 
+(1, 1, 'Company Introduction CTA Template', 
+'Learn more about {{company_name}}',
+'Hi {{contact_name}},
+
+I wanted to quickly introduce {{company_name}} and share how we can help your business.
+
+You can read more about our company here:
+
+<a href="https://example.com/company">Read more about our company</a>
+
+If this looks relevant, I''d be happy to connect.
+
+Best regards,
+{{employee_name}}',
+'OUTREACH', 'LEAD', TRUE);

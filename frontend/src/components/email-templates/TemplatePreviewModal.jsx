@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, Mail } from 'lucide-react';
 import * as templateService from '../../services/emailTemplateService';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 /* =====================================================
    TEMPLATE PREVIEW MODAL
@@ -9,6 +10,7 @@ import * as templateService from '../../services/emailTemplateService';
 const TemplatePreviewModal = ({ template, onClose }) => {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
+  useCloseAllModals(onClose);
 
   useEffect(() => {
     (async () => {
@@ -28,12 +30,6 @@ const TemplatePreviewModal = ({ template, onClose }) => {
       }
     })();
   }, [template]);
-
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

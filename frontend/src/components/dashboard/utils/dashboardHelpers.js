@@ -27,11 +27,27 @@ export const getPageTitle = (activeView, activeStage) => {
     case 'gmail':
       return 'Gmail';
     case 'assistant':
-      return 'AI Assistant';
+      return 'Chat support';
     case 'team':
       return 'Team Management';
     case 'settings':
       return 'Settings';
+    case 'discuss':
+      return 'Discuss';
+    case 'templates':
+      return 'Templates';
+    case 'sequences':
+      return 'Sequences';
+    case 'ab-tests':
+      return 'A/B Tests';
+    case 'automations':
+      return 'Automations';
+    case 'advanced-analytics':
+      return 'Advanced Analytics';
+    case 'pages':
+      return 'Page Builder';
+    case 'followups':
+      return 'Follow-ups';
     case 'sessions':
       return `${activeStage ? activeStage.charAt(0) + activeStage.slice(1).toLowerCase() : ''} Sessions`;
     case 'contacts':

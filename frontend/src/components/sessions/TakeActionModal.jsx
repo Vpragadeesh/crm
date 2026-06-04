@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, ArrowRight, AlertCircle } from 'lucide-react';
+import { useCloseAllModals } from '../../hooks/useEscapeKey';
 
 const TakeActionModal = ({ 
   isOpen, 
@@ -9,6 +10,7 @@ const TakeActionModal = ({
   onConfirm, 
   loading = false 
 }) => {
+  useCloseAllModals(onClose, isOpen);
   const [expectedValue, setExpectedValue] = useState('');
   const [productName, setProductName] = useState('');
   const [error, setError] = useState('');

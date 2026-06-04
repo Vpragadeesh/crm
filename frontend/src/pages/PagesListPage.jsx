@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCloseAllModals } from '../hooks/useEscapeKey';
 import { 
   Plus, 
   Search, 
@@ -61,6 +62,7 @@ export function PagesListContent() {
   const [showNewPageModal, setShowNewPageModal] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  useCloseAllModals(() => setShowNewPageModal(false), showNewPageModal);
   
   // Refs for tracking
   const initialLoadRef = useRef(true);

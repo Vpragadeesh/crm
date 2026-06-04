@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toLocalDateOnly } from "./constants";
 import { updateAppointmentStatus, generateMeetLink as generateMeetLinkApi } from "../../services/taskService";
+import { useCloseAllModals } from "../../hooks/useEscapeKey";
 
 // Task types that send appointment emails and track responses
 const APPOINTMENT_TYPES = new Set(["CALL", "MEETING", "DEMO"]);
@@ -35,6 +36,7 @@ const MEET_ELIGIBLE_TYPES = new Set(["MEETING", "DEMO"]);
 
 // Task Modal Component
 const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave, lockedContact }) => {
+  useCloseAllModals(onClose, isOpen);
   // Helper to format date in local timezone
   const formatLocalDate = (date) => {
     const year = date.getFullYear();

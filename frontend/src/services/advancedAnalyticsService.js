@@ -67,3 +67,16 @@ export const getAutomationROI = async (filters = {}) => {
   const response = await api.get(`/analytics/automation-roi?${params.toString()}`);
   return response.data;
 };
+
+/**
+ * Get call and telephony analytics
+ */
+export const getCallMetrics = async (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.append('startDate', filters.startDate);
+  if (filters.endDate) params.append('endDate', filters.endDate);
+  if (filters.employeeId) params.append('employeeId', filters.employeeId);
+
+  const response = await api.get(`/analytics/call-metrics?${params.toString()}`);
+  return response.data;
+};
