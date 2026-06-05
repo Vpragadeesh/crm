@@ -28,6 +28,7 @@ import { DollarSign } from "lucide-react";
 
 // Lazy load InsightsPanel for better performance
 const InsightsPanel = lazy(() => import("./InsightsPanel"));
+const AdvancedAnalyticsPage = lazy(() => import("../../pages/AdvancedAnalyticsPage"));
 
 // =============================================================================
 // CACHE CONFIGURATION - Inspired by SWR/React Query patterns used in Salesforce/HubSpot
@@ -307,8 +308,8 @@ export default function AnalyticsDashboard() {
           <button
             onClick={() => setActiveTab('overview')}
             className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'overview'
-                ? 'border-sky-500 text-sky-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-sky-500 text-sky-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <div className="flex items-center gap-2">
@@ -319,8 +320,8 @@ export default function AnalyticsDashboard() {
           <button
             onClick={() => setActiveTab('insights')}
             className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'insights'
-                ? 'border-sky-500 text-sky-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-sky-500 text-sky-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <div className="flex items-center gap-2">
@@ -331,8 +332,8 @@ export default function AnalyticsDashboard() {
           <button
             onClick={() => setActiveTab('products')}
             className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'products'
-                ? 'border-sky-500 text-sky-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-sky-500 text-sky-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             <div className="flex items-center gap-2">
@@ -340,7 +341,19 @@ export default function AnalyticsDashboard() {
               <span>Products</span>
             </div>
           </button>
-          
+          <button
+            onClick={() => setActiveTab('advanced')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'advanced'
+              ? 'border-sky-500 text-sky-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              <span>Advanced-Analytics</span>
+            </div>
+          </button>
+
         </nav>
       </div>
 
@@ -351,6 +364,10 @@ export default function AnalyticsDashboard() {
         </Suspense>
       ) : activeTab === 'products' ? (
         <ProductAnalytics />
+      ) : activeTab === 'advanced' ? (
+        <Suspense fallback={<div className="p-6 text-center text-gray-500">Loading Advanced Analytics...</div>}>
+          <AdvancedAnalyticsPage />
+        </Suspense>
       ) : (
         <>
           {/* Background refresh indicator */}
