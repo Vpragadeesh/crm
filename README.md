@@ -20,20 +20,7 @@ A comprehensive CRM (Customer Relationship Management) backend system that manag
 - 🔐 **Google OAuth**: Secure authentication with Google
 - 📈 **Status History**: Full audit trail of contact status changes
 
-## 📋 CRM Flow
-
-```
-LEAD → MQL → SQL → OPPORTUNITY → CUSTOMER → EVANGELIST
-  │      │     │        │            │           │
-  │      │     │        │            │           └── Avg feedback ≥ 8
-  │      │     │        │            └── Deal closes (WON)
-  │      │     │        └── Employee sets expected value
-  │      │     └── Avg MQL session rating ≥ 7
-  │      └── Lead clicks email link (automated)
-  └── Employee creates lead, sends marketing email
-```
-
-## 🛠️ Tech Stack
+## ️ Tech Stack
 
 - **Runtime**: Node.js 18+
 - **Framework**: Express.js 5.x
