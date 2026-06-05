@@ -4,6 +4,7 @@ import { executeReadOnlyQuery } from "./assistantQuery.executor.js";
 import { buildVisualization } from "./assistantVisualization.js";
 import { db } from "../../config/db.js";
 import toolAuditLog from "./toolAuditLog.service.js";
+import sessionManager from "./sessionManager.service.js";
 
 const SESSION_TOKEN_SECRET = process.env.SUPPORT_CHAT_SESSION_SECRET || process.env.JWT_SECRET;
 const SESSION_TOKEN_TTL = process.env.SUPPORT_CHAT_SESSION_TOKEN_TTL || "8h";
@@ -265,55 +266,48 @@ export const createSession = async (req, res, next) => {
   try {
     const { companyId, empId, role } = req.user;
     const requestedType = String(req.body?.queryType || "mysql").toLowerCase();
+    const agentMode = req.body?.agentMode === true;
+    const userInstructions = String(req.body?.systemInstructions || "").trim();
 
+    // 1. Validate queryType
     if (!SUPPORTED_QUERY_TYPES.has(requestedType)) {
       return res.status(400).json({
         success: false,
-        message: "Unsupported queryType",
+        message: "Unsupported queryType. Must be one of: mysql, postgresql",
       });
     }
 
-    const userInstructions = String(req.body?.systemInstructions || "").trim();
-    const systemInstructions = [
-      buildGuardrailInstructions({ companyId, empId, role }),
-      userInstructions,
-    ]
-      .filter(Boolean)
-      .join(" ");
+    // 2. Use SessionManager to initialize session with full support for agent mode and schema context
+    let sessionResult;
+    try {
+      sessionResult = await sessionManager.initializeSession(companyId, empId, {
+        queryType: requestedType,
+        agentMode,
+        systemInstructions: userInstructions,
+        role,
+        dbUrl: req.body?.db_url || null,
+      });
+    } catch (error) {
+      // Check if it's a support-chat service unavailable error
+      if (error.message.includes("unavailable") || error.message.includes("Cannot create session")) {
+        return res.status(503).json({
+          success: false,
+          message: "Cannot initialize session; support chat service unreachable",
+          error: error.message,
+        });
+      }
+      throw error;
+    }
 
-    const session = await supportChatService.createSession({
-      queryType: requestedType,
-      systemInstructions,
-      companyId,
-    });
-
-    const sessionToken = signSessionToken({
-      sessionId: session.session_id,
-      companyId,
-      empId,
-      queryType: requestedType,
-    });
-
-    await createOrRestoreSessionMeta({
-      companyId,
-      empId,
-      sessionId: session.session_id,
-      queryType: session.query_type || requestedType,
-      hasDbConnection: Boolean(session.has_db_connection ?? session.execution_mode === "crm_backend"),
-      fallbackMode: session.fallback_mode || null,
-      fallbackReason: session.fallback_reason || null,
-    });
-
+    // 3. Return response with schema context and session info
     res.status(201).json({
       success: true,
-      sessionToken,
-      session: {
-        queryType: session.query_type,
-        createdAt: session.created_at,
-        hasDbConnection: Boolean(session.has_db_connection ?? session.execution_mode === "crm_backend"),
-        fallbackMode: session.fallback_mode || null,
-        fallbackReason: session.fallback_reason || null,
-      },
+      sessionToken: sessionResult.sessionToken,
+      expiresIn: sessionResult.expiresIn,
+      supportChatSessionId: sessionResult.supportChatSessionId,
+      schemaContext: sessionResult.schemaContext || [],
+      fallback_mode: sessionResult.schemaError ? "schema-only" : null,
+      fallback_reason: sessionResult.schemaError || null,
     });
   } catch (error) {
     next(error);
@@ -644,18 +638,29 @@ export const sendAgentMessage = async (req, res, next) => {
 
 export const getAuditLog = async (req, res, next) => {
   try {
-    const { companyId } = req.user;
+    const { companyId, empId } = req.user;
     const sessionId = resolveSessionId(req.params.sessionToken, req.user);
-    const limit = parseInt(req.query.limit, 10) || 50;
-    const offset = parseInt(req.query.offset, 10) || 0;
 
-    const result = await toolAuditLog.getAuditLog(companyId, sessionId, limit, offset);
+    // Parse and validate pagination parameters
+    let limit = parseInt(req.query?.limit || "50", 10);
+    let offset = parseInt(req.query?.offset || "0", 10);
+
+    // Enforce limits
+    if (isNaN(limit) || limit < 1) limit = 50;
+    if (isNaN(offset) || offset < 0) offset = 0;
+    if (limit > 500) limit = 500;
+
+    // Retrieve audit logs with tenant isolation
+    const auditData = await toolAuditLog.getAuditLog(companyId, sessionId, limit, offset);
+
     res.json({
       success: true,
-      ...result,
+      records: auditData.records,
+      total: auditData.total,
+      limit: auditData.limit,
+      offset: auditData.offset,
     });
   } catch (error) {
     next(error);
   }
 };
-
