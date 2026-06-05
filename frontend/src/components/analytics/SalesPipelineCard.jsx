@@ -154,7 +154,7 @@ const SalesPipelineCard = ({ filters, onLoadTime }) => {
                       🔥 {stage.hot_count} | 🌡️ {stage.warm_count} | ❄️ {stage.cold_count}
                     </span>
                     <span className="text-xs text-white font-medium">
-                      Score: {stage.avg_interest_score?.toFixed(1) || 0}
+                      Score: {Number(stage.avg_interest_score)?.toFixed(1) || 0}
                     </span>
                   </div>
                 </div>

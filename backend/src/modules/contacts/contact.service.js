@@ -194,15 +194,6 @@ export const promoteToSQL = async (contactId, empId) => {
     throw new Error("Only MQL can be promoted to SQL");
   }
 
-  const avgRating = await sessionRepo.getAverageRating(
-    contactId,
-    "MQL"
-  );
-
-  if (avgRating < 7) {
-    throw new Error("MQL not qualified for SQL -lead should have avgRating >=7 ");
-  }
-
   await contactRepo.updateStatus(contactId, "SQL");
   await contactRepo.insertStatusHistory(
     contactId,
@@ -307,13 +298,6 @@ export const convertToEvangelist = async (contactId) => {
 
   if (!contact || contact.status !== "CUSTOMER") {
     throw new Error("Only customers can become evangelists");
-  }
-
-  const avgFeedback =
-    await feedbackRepo.getAverageRating(contactId);
-
-  if (avgFeedback < 8) {
-    throw new Error("Customer not eligible for evangelist");
   }
 
   await contactRepo.updateStatus(contactId, "EVANGELIST");
