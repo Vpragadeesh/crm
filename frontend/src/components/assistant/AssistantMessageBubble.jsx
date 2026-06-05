@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Database } from "lucide-react";
 import AssistantDataChart from "./AssistantDataChart";
+import AgentReasoningPanel from "./AgentReasoningPanel";
+import ToolsSummary from "./ToolsSummary";
 
 const formatTime = (iso) => {
   if (!iso) return "";
@@ -13,6 +15,11 @@ export default function AssistantMessageBubble({ message, isLatest, isAdmin }) {
   const [queryOpen, setQueryOpen] = useState(false);
 
   const accent = isAdmin ? "border-orange-200" : "border-sky-200";
+
+  const hasReasoning =
+    isAssistant &&
+    Array.isArray(message.agent_reasoning) &&
+    message.agent_reasoning.length > 0;
 
   return (
     <div className={`flex chat-message ${isAssistant ? "justify-start" : "justify-end"}`}>
@@ -28,6 +35,13 @@ export default function AssistantMessageBubble({ message, isLatest, isAdmin }) {
         )}
 
         <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+
+        {/* Tool execution badges */}
+        {hasReasoning && (
+          <div className="mt-2.5">
+            <ToolsSummary reasoning={message.agent_reasoning} />
+          </div>
+        )}
 
         {isAssistant && message.query && (
           <div className={`mt-3 rounded-lg border ${accent} overflow-hidden`}>
@@ -52,6 +66,16 @@ export default function AssistantMessageBubble({ message, isLatest, isAdmin }) {
         {isAssistant && message.visualization && (
           <div className="mt-3">
             <AssistantDataChart visualization={message.visualization} />
+          </div>
+        )}
+
+        {/* Agent reasoning panel */}
+        {hasReasoning && (
+          <div className="mt-3">
+            <AgentReasoningPanel
+              reasoning={message.agent_reasoning}
+              autoExpand={isLatest}
+            />
           </div>
         )}
 

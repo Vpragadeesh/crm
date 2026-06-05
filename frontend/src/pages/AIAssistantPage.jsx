@@ -22,11 +22,13 @@ import {
   getAssistantSession,
   getAssistantHistory,
   sendAssistantMessage,
+  sendAgentMessage,
   deleteAssistantSession,
   renameAssistantSession,
 } from "../services/assistantService";
 import AssistantMessageBubble from "../components/assistant/AssistantMessageBubble";
 import AssistantWorkflow from "../components/assistant/AssistantWorkflow";
+import AgentModeToggle from "../components/assistant/AgentModeToggle";
 import { buildVisualization } from "../utils/assistantVisualization";
 
 const QUICK_PROMPTS = [
@@ -34,6 +36,13 @@ const QUICK_PROMPTS = [
   "Which contacts are most likely to close this week?",
   "Summarize overdue follow-ups by owner",
   "What changed in pipeline since last week?",
+];
+
+const AGENT_QUICK_PROMPTS = [
+  "Find contacts with score above 80 and create follow-up tasks",
+  "Show top 5 deals by value and update their status",
+  "Send thank-you emails to recently closed deals",
+  "Find overdue tasks and create reminders",
 ];
 
 const formatTime = (iso) => {
@@ -208,6 +217,7 @@ const AIAssistantPage = () => {
   const [sending, setSending] = useState(false);
   const [agentWorkflow, setAgentWorkflow] = useState([]);
   const [hasDbConnection, setHasDbConnection] = useState(true);
+  const [agentMode, setAgentMode] = useState(true);
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [renamingToken, setRenamingToken] = useState("");
   const [renameValue, setRenameValue] = useState("");
@@ -382,20 +392,36 @@ const AIAssistantPage = () => {
     setPrompt("");
     setSending(true);
     setError("");
-    setAgentWorkflow([
-      { id: "translate", label: "Translating your question to SQL", status: "active" },
-      { id: "execute", label: "Fetching data from CRM database", status: "pending" },
-      { id: "visualize", label: "Building chart", status: "pending" },
-      { id: "insight", label: "Summarizing with AI", status: "pending" },
-    ]);
+    setAgentWorkflow(
+      agentMode
+        ? [
+            { id: "reason", label: "Agent reasoning about your request", status: "active" },
+            { id: "tools", label: "Executing CRM actions", status: "pending" },
+            { id: "finalize", label: "Preparing response", status: "pending" },
+          ]
+        : [
+            { id: "translate", label: "Translating your question to SQL", status: "active" },
+            { id: "execute", label: "Fetching data from CRM database", status: "pending" },
+            { id: "visualize", label: "Building chart", status: "pending" },
+            { id: "insight", label: "Summarizing with AI", status: "pending" },
+          ]
+    );
     setMessages((prev) => [...prev, optimistic]);
 
     try {
-      const data = await sendAssistantMessage(activeToken, {
-        message: userText,
-        executeQuery: hasDbConnection,
-        generateInsight: true,
-      });
+      let data;
+
+      if (agentMode) {
+        // Agent mode — POST /chat/agent
+        data = await sendAgentMessage(activeToken, userText);
+      } else {
+        // Standard query mode — POST /chat
+        data = await sendAssistantMessage(activeToken, {
+          message: userText,
+          executeQuery: hasDbConnection,
+          generateInsight: true,
+        });
+      }
 
       setAgentWorkflow(data?.workflow || []);
 
@@ -405,6 +431,7 @@ const AIAssistantPage = () => {
           query: data.executedQuery || data.response?.query,
           visualization: data.visualization || data.response.visualization,
           workflow: data.workflow,
+          agent_reasoning: data.response?.agent_reasoning || null,
         });
         setMessages((prev) => [...prev, assistantMessage]);
       }
@@ -429,7 +456,7 @@ const AIAssistantPage = () => {
       setSending(false);
       setAgentWorkflow([]);
     }
-  }, [activeToken, prompt, hasDbConnection, sending]);
+  }, [activeToken, prompt, hasDbConnection, sending, agentMode]);
 
   const handleQuickPrompt = useCallback(
     (value) => {
@@ -527,11 +554,15 @@ const AIAssistantPage = () => {
             <div className="px-4 sm:px-5 py-2.5 border-b border-slate-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 text-xs text-slate-500">
                 <Sparkles className="w-3.5 h-3.5" />
-                Ask in plain English → AI writes SQL → CRM runs it → chart + summary
+                {agentMode
+                  ? "Agent mode — multi-step reasoning + CRM actions"
+                  : "Ask in plain English → AI writes SQL → CRM runs it → chart + summary"}
               </div>
-              <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5">
-                Agent mode
-              </span>
+              <AgentModeToggle
+                enabled={agentMode}
+                onChange={setAgentMode}
+                isAdmin={isAdmin}
+              />
             </div>
 
             {!hasDbConnection && activeToken && (
@@ -560,14 +591,21 @@ const AIAssistantPage = () => {
 
               {activeToken && messages.length === 0 && !loadingSession && (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-600">Try one of these:</p>
+                  <p className="text-sm text-slate-600">
+                    {agentMode ? "Try an agent workflow:" : "Try one of these:"}
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {QUICK_PROMPTS.map((item) => (
+                    {(agentMode ? AGENT_QUICK_PROMPTS : QUICK_PROMPTS).map((item) => (
                       <button
                         key={item}
                         onClick={() => handleQuickPrompt(item)}
-                        className="text-left rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        className={`text-left rounded-xl border p-3 text-sm transition-colors ${
+                          agentMode
+                            ? "border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
                       >
+                        {agentMode && <span className="mr-1">⚡</span>}
                         {item}
                       </button>
                     ))}

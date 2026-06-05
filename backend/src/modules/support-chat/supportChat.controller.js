@@ -3,6 +3,7 @@ import * as supportChatService from "./supportChat.service.js";
 import { executeReadOnlyQuery } from "./assistantQuery.executor.js";
 import { buildVisualization } from "./assistantVisualization.js";
 import { db } from "../../config/db.js";
+import toolAuditLog from "./toolAuditLog.service.js";
 
 const SESSION_TOKEN_SECRET = process.env.SUPPORT_CHAT_SESSION_SECRET || process.env.JWT_SECRET;
 const SESSION_TOKEN_TTL = process.env.SUPPORT_CHAT_SESSION_TOKEN_TTL || "8h";
@@ -173,6 +174,38 @@ export const health = async (_req, res, next) => {
   try {
     const status = await supportChatService.health();
     res.json({ success: true, status });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const healthAssistant = async (_req, res, next) => {
+  try {
+    let dbStatus = "ok";
+    try {
+      await db.query("SELECT 1");
+    } catch (dbError) {
+      dbStatus = `error: ${dbError.message}`;
+    }
+
+    let supportChatStatus = "ok";
+    try {
+      await supportChatService.health();
+    } catch (scError) {
+      supportChatStatus = `error: ${scError.message}`;
+    }
+
+    const overallStatus = (dbStatus === "ok" && supportChatStatus === "ok") ? "ok" : "degraded";
+
+    res.json({
+      success: true,
+      status: overallStatus,
+      services: {
+        db: dbStatus,
+        supportChat: supportChatStatus,
+      },
+      agentModeEnabled: process.env.AGENT_MODE_ENABLED,
+    });
   } catch (error) {
     next(error);
   }
@@ -535,6 +568,10 @@ export const deleteSession = async (req, res, next) => {
 
 export const sendAgentMessage = async (req, res, next) => {
   try {
+    if (process.env.AGENT_MODE_ENABLED !== "true") {
+      return res.status(403).json({ success: false, message: "Agent mode is currently disabled in this environment." });
+    }
+
     const { companyId, empId } = req.user;
     const sessionId = resolveSessionId(req.params.sessionToken, req.user);
     const message = String(req.body?.message || "").trim();
@@ -548,10 +585,11 @@ export const sendAgentMessage = async (req, res, next) => {
     }
 
     // Send message to support-chat API in agent mode
-    const response = await supportChatService.sendMessage(sessionId, message, {
-      executeQuery: true,
-      generateInsight: false,
-      agentMode: true, // Enable agent mode
+    const response = await supportChatService.sendMessage(sessionId, {
+      message,
+      execute_query: true,
+      generate_insight: false,
+      agent_mode: true, // Enable agent mode
     });
 
     // Update session metadata with agent information
@@ -603,3 +641,21 @@ export const sendAgentMessage = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getAuditLog = async (req, res, next) => {
+  try {
+    const { companyId } = req.user;
+    const sessionId = resolveSessionId(req.params.sessionToken, req.user);
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    const result = await toolAuditLog.getAuditLog(companyId, sessionId, limit, offset);
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
