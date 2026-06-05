@@ -28,6 +28,13 @@ export const sendAssistantMessage = async (sessionToken, payload) => {
   return data;
 };
 
+export const sendAgentMessage = async (sessionToken, message) => {
+  const { data } = await api.post(`/assistant/sessions/${sessionToken}/chat/agent`, {
+    message,
+  });
+  return data;
+};
+
 export const deleteAssistantSession = async (sessionToken) => {
   await api.delete(`/assistant/sessions/${sessionToken}`);
 };

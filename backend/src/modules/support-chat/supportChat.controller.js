@@ -548,10 +548,11 @@ export const sendAgentMessage = async (req, res, next) => {
     }
 
     // Send message to support-chat API in agent mode
-    const response = await supportChatService.sendMessage(sessionId, message, {
-      executeQuery: true,
-      generateInsight: false,
-      agentMode: true, // Enable agent mode
+    const response = await supportChatService.sendMessage(sessionId, {
+      message,
+      execute_query: true,
+      generate_insight: false,
+      agent_mode: true, // Enable agent mode
     });
 
     // Update session metadata with agent information

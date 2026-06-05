@@ -72,17 +72,17 @@ const TEMPERATURE_COLORS = {
 
 export default function AnalyticsDashboard() {
   // Use cached data as initial state (instant render if available)
-  const [analytics, setAnalytics] = useState(() => 
+  const [analytics, setAnalytics] = useState(() =>
     isCacheValid() ? analyticsCache.data : null
   );
   const [loading, setLoading] = useState(() => !isCacheValid());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(() => 
+  const [lastUpdated, setLastUpdated] = useState(() =>
     analyticsCache.timestamp ? new Date(analyticsCache.timestamp) : null
   );
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' or 'products'
-  
+
   // Track if component is mounted to prevent state updates on unmount
   const isMountedRef = useRef(true);
 
@@ -102,11 +102,11 @@ export default function AnalyticsDashboard() {
     analyticsCache.promise = (async () => {
       try {
         const data = await getComprehensiveAnalytics();
-        
+
         // Update cache
         analyticsCache.data = data;
         analyticsCache.timestamp = Date.now();
-        
+
         return data;
       } finally {
         analyticsCache.promise = null;
@@ -119,14 +119,14 @@ export default function AnalyticsDashboard() {
   // Initial load with stale-while-revalidate pattern
   useEffect(() => {
     isMountedRef.current = true;
-    
+
     const loadAnalytics = async () => {
       // If we have valid cached data, show it immediately
       if (isCacheValid() && analyticsCache.data) {
         setAnalytics(analyticsCache.data);
         setLastUpdated(new Date(analyticsCache.timestamp));
         setLoading(false);
-        
+
         // If data is stale but valid, revalidate in background
         if (!isCacheFresh()) {
           setIsRefreshing(true);
@@ -194,20 +194,20 @@ export default function AnalyticsDashboard() {
   // Memoized computed values to prevent re-calculations on re-renders
   const processedData = useMemo(() => {
     if (!analytics) return null;
-    
+
     const { overview, funnel, stagePerformance, followUpEffectiveness, temperatureInsights, sourcePerformance, trends } = analytics;
-    
+
     // Pre-compute expensive calculations
     const funnelMaxCount = Math.max(...(funnel?.map((s) => s.count) || [1]), 1);
     const hasBottleneck = funnel?.some((s, i) => i > 0 && parseFloat(s.dropOff) > 60);
     const bottleneckStage = hasBottleneck ? funnel.find((s, i) => i > 0 && parseFloat(s.dropOff) > 60)?.stage : null;
-    
+
     const temperatureTotal = temperatureInsights?.reduce((sum, t) => sum + t.count, 0) || 1;
     const sourceMaxLeads = Math.max(...(sourcePerformance?.map((s) => s.totalLeads) || [1]), 1);
     const trendsMaxLeads = Math.max(...(trends?.weekly?.map((w) => w.leadsCreated) || [1]), 1);
-    
-    const connectRate = followUpEffectiveness?.totalSessions > 0 
-      ? ((followUpEffectiveness.connected / followUpEffectiveness.totalSessions) * 100).toFixed(1) 
+
+    const connectRate = followUpEffectiveness?.totalSessions > 0
+      ? ((followUpEffectiveness.connected / followUpEffectiveness.totalSessions) * 100).toFixed(1)
       : 0;
 
     return {
@@ -234,7 +234,7 @@ export default function AnalyticsDashboard() {
     const now = new Date();
     const diffMs = now - lastUpdated;
     const diffMins = Math.floor(diffMs / 60000);
-    
+
     if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     const diffHours = Math.floor(diffMins / 60);
@@ -266,7 +266,7 @@ export default function AnalyticsDashboard() {
 
   if (!processedData) return null;
 
-  const { 
+  const {
     overview, funnel, funnelMaxCount, hasBottleneck, bottleneckStage,
     stagePerformance, followUpEffectiveness, connectRate,
     temperatureInsights, temperatureTotal,
@@ -306,11 +306,10 @@ export default function AnalyticsDashboard() {
         <nav className="-mb-px flex gap-6">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'overview'
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'overview'
                 ? 'border-sky-500 text-sky-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
@@ -319,11 +318,10 @@ export default function AnalyticsDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('insights')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'insights'
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'insights'
                 ? 'border-sky-500 text-sky-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2">
               <Lightbulb className="w-4 h-4" />
@@ -332,22 +330,22 @@ export default function AnalyticsDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('products')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'products'
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'products'
                 ? 'border-sky-500 text-sky-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2">
               <Package className="w-4 h-4" />
               <span>Products</span>
             </div>
           </button>
+          
         </nav>
       </div>
 
       {/* Tab Content */}
-      {activeTab ===  'insights' ? (
+      {activeTab === 'insights' ? (
         <Suspense fallback={<InsightsSuspenseFallback />}>
           <InsightsPanel />
         </Suspense>
@@ -365,93 +363,93 @@ export default function AnalyticsDashboard() {
 
           {/* Error banner (when we have cached data but refresh failed) */}
           {error && analytics && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 text-sm rounded-lg">
-          <AlertCircle className="w-4 h-4" />
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto text-amber-500 hover:text-amber-700">
-            ×
-          </button>
-        </div>
-      )}
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 text-sm rounded-lg">
+              <AlertCircle className="w-4 h-4" />
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="ml-auto text-amber-500 hover:text-amber-700">
+                ×
+              </button>
+            </div>
+          )}
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <OverviewCard
-          title="Active Leads"
-          value={overview.activeLeads}
-          subtitle={`${overview.totalLeads} total contacts`}
-          icon={<Users className="w-5 h-5" />}
-          color="sky"
-        />
-        <OverviewCard
-          title="Conversion Rate"
-          value={`${overview.conversionRate}%`}
-          subtitle={`${overview.totalCustomers} customers won`}
-          icon={<Target className="w-5 h-5" />}
-          color="emerald"
-          trend={overview.conversionRate > 10 ? "up" : "down"}
-        />
-        <OverviewCard
-          title="Avg. Days to Close"
-          value={overview.avgDaysToClose || "—"}
-          subtitle="Lead to Customer"
-          icon={<Clock className="w-5 h-5" />}
-          color="purple"
-        />
-        <OverviewCard
-          title="Needs Attention"
-          value={overview.leadsNeedingAttention}
-          subtitle="No contact in 7+ days"
-          icon={<AlertCircle className="w-5 h-5" />}
-          color={overview.leadsNeedingAttention > 5 ? "red" : "amber"}
-          urgent={overview.leadsNeedingAttention > 5}
-        />
-      </div>
+          {/* Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <OverviewCard
+              title="Active Leads"
+              value={overview.activeLeads}
+              subtitle={`${overview.totalLeads} total contacts`}
+              icon={<Users className="w-5 h-5" />}
+              color="sky"
+            />
+            <OverviewCard
+              title="Conversion Rate"
+              value={`${overview.conversionRate}%`}
+              subtitle={`${overview.totalCustomers} customers won`}
+              icon={<Target className="w-5 h-5" />}
+              color="emerald"
+              trend={overview.conversionRate > 10 ? "up" : "down"}
+            />
+            <OverviewCard
+              title="Avg. Days to Close"
+              value={overview.avgDaysToClose || "—"}
+              subtitle="Lead to Customer"
+              icon={<Clock className="w-5 h-5" />}
+              color="purple"
+            />
+            <OverviewCard
+              title="Needs Attention"
+              value={overview.leadsNeedingAttention}
+              subtitle="No contact in 7+ days"
+              icon={<AlertCircle className="w-5 h-5" />}
+              color={overview.leadsNeedingAttention > 5 ? "red" : "amber"}
+              urgent={overview.leadsNeedingAttention > 5}
+            />
+          </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pipeline Funnel - Takes 2 columns */}
-        <div className="lg:col-span-2">
-          <PipelineFunnel funnel={funnel} maxCount={funnelMaxCount} hasBottleneck={hasBottleneck} bottleneckStage={bottleneckStage} />
-        </div>
+          {/* Main Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Pipeline Funnel - Takes 2 columns */}
+            <div className="lg:col-span-2">
+              <PipelineFunnel funnel={funnel} maxCount={funnelMaxCount} hasBottleneck={hasBottleneck} bottleneckStage={bottleneckStage} />
+            </div>
 
-        {/* Follow-up Effectiveness */}
-        <div>
-          <FollowUpEffectiveness data={followUpEffectiveness} connectRate={connectRate} />
-        </div>
-      </div>
+            {/* Follow-up Effectiveness */}
+            <div>
+              <FollowUpEffectiveness data={followUpEffectiveness} connectRate={connectRate} />
+            </div>
+          </div>
 
-      {/* Second Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Stage Performance */}
-        <div>
-          <StagePerformance data={stagePerformance} />
-        </div>
+          {/* Second Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Stage Performance */}
+            <div>
+              <StagePerformance data={stagePerformance} />
+            </div>
 
-        {/* Lead Temperature */}
-        <div>
-          <LeadTemperature data={temperatureInsights} total={temperatureTotal} />
-        </div>
+            {/* Lead Temperature */}
+            <div>
+              <LeadTemperature data={temperatureInsights} total={temperatureTotal} />
+            </div>
 
-        {/* Source Performance */}
-        <div>
-          <SourcePerformance data={sourcePerformance} maxLeads={sourceMaxLeads} />
-        </div>
-      </div>
+            {/* Source Performance */}
+            <div>
+              <SourcePerformance data={sourcePerformance} maxLeads={sourceMaxLeads} />
+            </div>
+          </div>
 
-      {/* Forecast vs Actual & Activity Heatmap */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <OverviewForecastVsActual />
-        <div className="lg:col-span-2 h-full">
-          <YearlyActivityHeatmap />
-        </div>
-      </div>
+          {/* Forecast vs Actual & Activity Heatmap */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <OverviewForecastVsActual />
+            <div className="lg:col-span-2 h-full">
+              <YearlyActivityHeatmap />
+            </div>
+          </div>
 
-      {/* Trends & Stuck Leads */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TrendsChart trends={trends} maxLeads={trendsMaxLeads} />
-        <StuckLeads leads={stagePerformance?.stuckLeads || []} />
-      </div>
+          {/* Trends & Stuck Leads */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <TrendsChart trends={trends} maxLeads={trendsMaxLeads} />
+            <StuckLeads leads={stagePerformance?.stuckLeads || []} />
+          </div>
         </>
       )}
     </div>
@@ -990,8 +988,8 @@ function OverviewForecastVsActual() {
 
     const fetchData = async () => {
       // Check cache
-      if (forecastCache.data && forecastCache.timestamp && 
-          Date.now() - forecastCache.timestamp < FORECAST_STALE_TIME) {
+      if (forecastCache.data && forecastCache.timestamp &&
+        Date.now() - forecastCache.timestamp < FORECAST_STALE_TIME) {
         setData(forecastCache.data);
         setLoading(false);
         return;
@@ -1015,7 +1013,7 @@ function OverviewForecastVsActual() {
       try {
         forecastCache.promise = getEnhancedAnalytics();
         const result = await forecastCache.promise;
-        
+
         forecastCache.data = result.forecastVsActual;
         forecastCache.timestamp = Date.now();
         forecastCache.promise = null;
