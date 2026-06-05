@@ -532,3 +532,74 @@ export const deleteSession = async (req, res, next) => {
     next(error);
   }
 };
+
+export const sendAgentMessage = async (req, res, next) => {
+  try {
+    const { companyId, empId } = req.user;
+    const sessionId = resolveSessionId(req.params.sessionToken, req.user);
+    const message = String(req.body?.message || "").trim();
+
+    if (!message) {
+      return res.status(400).json({ success: false, message: "message is required" });
+    }
+
+    if (message.length > 5000) {
+      return res.status(400).json({ success: false, message: "message is too long (max 5000 characters)" });
+    }
+
+    // Send message to support-chat API in agent mode
+    const response = await supportChatService.sendMessage(sessionId, message, {
+      executeQuery: true,
+      generateInsight: false,
+      agentMode: true, // Enable agent mode
+    });
+
+    // Update session metadata with agent information
+    if (response.agent_reasoning && Array.isArray(response.agent_reasoning)) {
+      const toolNames = response.agent_reasoning
+        .filter((step) => step.tool_name)
+        .map((step) => step.tool_name);
+
+      const uniqueTools = [...new Set(toolNames)];
+
+      const reasoningSummary = response.agent_reasoning
+        .map((step) => `Step ${step.step}: ${step.action}`)
+        .join(" → ");
+
+      await db.query(
+        `
+          UPDATE assistant_chat_sessions
+          SET
+            last_agent_step_count = ?,
+            agent_tools_used = ?,
+            reasoning_trace_summary = ?,
+            title = CASE WHEN title = 'New chat' THEN ? ELSE title END,
+            last_message_preview = ?,
+            last_message_at = NOW(),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE support_chat_session_id = ?
+            AND company_id = ?
+            AND emp_id = ?
+            AND deleted_at IS NULL
+        `,
+        [
+          response.agent_reasoning.length,
+          JSON.stringify(uniqueTools),
+          reasoningSummary.slice(0, 5000),
+          buildTitleFromMessage(message),
+          buildPreviewFromMessage(message),
+          sessionId,
+          companyId,
+          empId,
+        ]
+      );
+    }
+
+    res.json({
+      success: true,
+      response,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

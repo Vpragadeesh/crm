@@ -12,6 +12,7 @@ router.post("/sessions", supportChatController.createSession);
 router.get("/sessions/:sessionToken", supportChatController.getSession);
 router.get("/sessions/:sessionToken/history", supportChatController.getHistory);
 router.post("/sessions/:sessionToken/chat", supportChatController.sendMessage);
+router.post("/sessions/:sessionToken/chat/agent", supportChatController.sendAgentMessage);
 router.patch("/sessions/:sessionToken", supportChatController.renameSession);
 router.delete("/sessions/:sessionToken", supportChatController.deleteSession);
 
