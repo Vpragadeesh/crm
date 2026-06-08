@@ -4,6 +4,7 @@ import { executeReadOnlyQuery } from "./assistantQuery.executor.js";
 import { buildVisualization } from "./assistantVisualization.js";
 import { db } from "../../config/db.js";
 import toolAuditLog from "./toolAuditLog.service.js";
+import sessionManager from "./sessionManager.service.js";
 
 const SESSION_TOKEN_SECRET = process.env.SUPPORT_CHAT_SESSION_SECRET || process.env.JWT_SECRET;
 const SESSION_TOKEN_TTL = process.env.SUPPORT_CHAT_SESSION_TOKEN_TTL || "8h";
@@ -265,6 +266,8 @@ export const createSession = async (req, res, next) => {
   try {
     const { companyId, empId, role } = req.user;
     const requestedType = String(req.body?.queryType || "mysql").toLowerCase();
+    const agentMode = req.body?.agentMode !== false; // default true if requested
+    const dbUrl = req.body?.db_url || null;
 
     if (!SUPPORTED_QUERY_TYPES.has(requestedType)) {
       return res.status(400).json({
@@ -274,48 +277,34 @@ export const createSession = async (req, res, next) => {
     }
 
     const userInstructions = String(req.body?.systemInstructions || "").trim();
-    const systemInstructions = [
-      buildGuardrailInstructions({ companyId, empId, role }),
-      userInstructions,
-    ]
-      .filter(Boolean)
-      .join(" ");
 
-    const session = await supportChatService.createSession({
+    const sessionData = await sessionManager.initializeSession(companyId, empId, {
       queryType: requestedType,
-      systemInstructions,
-      companyId,
-    });
-
-    const sessionToken = signSessionToken({
-      sessionId: session.session_id,
-      companyId,
-      empId,
-      queryType: requestedType,
-    });
-
-    await createOrRestoreSessionMeta({
-      companyId,
-      empId,
-      sessionId: session.session_id,
-      queryType: session.query_type || requestedType,
-      hasDbConnection: Boolean(session.has_db_connection ?? session.execution_mode === "crm_backend"),
-      fallbackMode: session.fallback_mode || null,
-      fallbackReason: session.fallback_reason || null,
+      dbUrl,
+      agentMode,
+      systemInstructions: userInstructions,
+      role,
     });
 
     res.status(201).json({
       success: true,
-      sessionToken,
+      sessionToken: sessionData.sessionToken,
       session: {
-        queryType: session.query_type,
-        createdAt: session.created_at,
-        hasDbConnection: Boolean(session.has_db_connection ?? session.execution_mode === "crm_backend"),
-        fallbackMode: session.fallback_mode || null,
-        fallbackReason: session.fallback_reason || null,
+        queryType: requestedType,
+        hasDbConnection: dbUrl !== null, // from V2 semantics
+        fallbackMode: sessionData.fallbackMode || null,
+        fallbackReason: sessionData.fallbackReason || null,
+        schemaContext: sessionData.schemaContext,
+        schemaError: sessionData.schemaError,
       },
     });
   } catch (error) {
+    if (error.message.includes("unavailable")) {
+      return res.status(503).json({
+        success: false,
+        message: "Cannot initialize session; support chat service unreachable"
+      });
+    }
     next(error);
   }
 };
@@ -373,6 +362,32 @@ export const sendMessage = async (req, res, next) => {
 
     if (message.length > 5000) {
       return res.status(400).json({ success: false, message: "message is too long" });
+    }
+
+    if (req.body?.askMode === true) {
+      const response = await supportChatService.insightFromResults(sessionId, {
+        message,
+        queryResult: [
+          {
+            instruction: "SYSTEM: This is Ask (conversational) mode. The system does not access the database to query data. Inform the user they are in Ask mode and cannot view live database statistics or run queries unless they switch to Query or Agent mode."
+          }
+        ],
+      });
+
+      await touchSessionMetaAfterMessage({ companyId, empId, sessionId, message });
+
+      return res.json({
+        success: true,
+        response: {
+          role: "assistant",
+          content: response.content || response.insight || "I'm in Ask mode.",
+          query: null,
+          query_result: null,
+          insight: response.insight || response.content || null,
+        },
+        visualization: { type: "none", message: "Ask mode is conversational; no database query was run." },
+        workflow: [],
+      });
     }
 
     const requestedExecution = req.body?.executeQuery !== false;

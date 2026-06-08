@@ -28,7 +28,7 @@ import {
 } from "../services/assistantService";
 import AssistantMessageBubble from "../components/assistant/AssistantMessageBubble";
 import AssistantWorkflow from "../components/assistant/AssistantWorkflow";
-import AgentModeToggle from "../components/assistant/AgentModeToggle";
+import AssistantModeSelector from "../components/assistant/AssistantModeSelector";
 import { buildVisualization } from "../utils/assistantVisualization";
 
 const QUICK_PROMPTS = [
@@ -45,11 +45,12 @@ const AGENT_QUICK_PROMPTS = [
   "Find overdue tasks and create reminders",
 ];
 
-const formatTime = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-};
+const ASK_QUICK_PROMPTS = [
+  "What is the difference between Ask, Query, and Agent modes?",
+  "How can I manage tasks in this CRM?",
+  "Explain the lifecycle stages of a contact",
+  "How do deals relate to opportunities?",
+];
 
 const buildSessionTitleFromPrompt = (prompt) => {
   const normalized = String(prompt || "")
@@ -217,7 +218,7 @@ const AIAssistantPage = () => {
   const [sending, setSending] = useState(false);
   const [agentWorkflow, setAgentWorkflow] = useState([]);
   const [hasDbConnection, setHasDbConnection] = useState(true);
-  const [agentMode, setAgentMode] = useState(true);
+  const [assistantMode, setAssistantMode] = useState("ask");
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [renamingToken, setRenamingToken] = useState("");
   const [renameValue, setRenameValue] = useState("");
@@ -393,17 +394,21 @@ const AIAssistantPage = () => {
     setSending(true);
     setError("");
     setAgentWorkflow(
-      agentMode
+      assistantMode === "agent"
         ? [
             { id: "reason", label: "Agent reasoning about your request", status: "active" },
             { id: "tools", label: "Executing CRM actions", status: "pending" },
             { id: "finalize", label: "Preparing response", status: "pending" },
           ]
-        : [
+        : assistantMode === "query"
+        ? [
             { id: "translate", label: "Translating your question to SQL", status: "active" },
             { id: "execute", label: "Fetching data from CRM database", status: "pending" },
             { id: "visualize", label: "Building chart", status: "pending" },
             { id: "insight", label: "Summarizing with AI", status: "pending" },
+          ]
+        : [
+            { id: "ask", label: "Thinking...", status: "active" }
           ]
     );
     setMessages((prev) => [...prev, optimistic]);
@@ -411,15 +416,21 @@ const AIAssistantPage = () => {
     try {
       let data;
 
-      if (agentMode) {
+      if (assistantMode === "agent") {
         // Agent mode — POST /chat/agent
         data = await sendAgentMessage(activeToken, userText);
-      } else {
+      } else if (assistantMode === "query") {
         // Standard query mode — POST /chat
         data = await sendAssistantMessage(activeToken, {
           message: userText,
           executeQuery: hasDbConnection,
           generateInsight: true,
+        });
+      } else {
+        // Ask mode — POST /chat with askMode: true
+        data = await sendAssistantMessage(activeToken, {
+          message: userText,
+          askMode: true,
         });
       }
 
@@ -456,7 +467,7 @@ const AIAssistantPage = () => {
       setSending(false);
       setAgentWorkflow([]);
     }
-  }, [activeToken, prompt, hasDbConnection, sending, agentMode]);
+  }, [activeToken, prompt, hasDbConnection, sending, assistantMode]);
 
   const handleQuickPrompt = useCallback(
     (value) => {
@@ -498,9 +509,15 @@ const AIAssistantPage = () => {
           </div>
         </header>
 
-        <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 min-h-0 flex relative">
+          {sidebarOpenMobile && (
+            <div
+              className="md:hidden absolute inset-0 bg-slate-900/30 backdrop-blur-xs z-10"
+              onClick={() => setSidebarOpenMobile(false)}
+            />
+          )}
           <aside
-            className={`border-r border-slate-100 bg-slate-50/70 w-full md:w-64 shrink-0 flex-col ${sidebarOpenMobile ? "flex" : "hidden"
+            className={`border-r border-slate-100 bg-slate-50/70 w-64 shrink-0 flex-col ${sidebarOpenMobile ? "flex absolute md:relative inset-y-0 left-0 z-20 bg-white shadow-xl md:shadow-none" : "hidden"
               } md:flex`}
           >
             <div className="px-3 pt-3 pb-2">
@@ -554,14 +571,16 @@ const AIAssistantPage = () => {
             <div className="px-4 sm:px-5 py-2.5 border-b border-slate-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 text-xs text-slate-500">
                 <Sparkles className="w-3.5 h-3.5" />
-                {agentMode
-                  ? "Agent mode — multi-step reasoning + CRM actions"
-                  : "Ask in plain English → AI writes SQL → CRM runs it → chart + summary"}
+                {assistantMode === "ask"
+                  ? "Ask mode — ask questions conversationally without database querying"
+                  : assistantMode === "query"
+                  ? "Query mode — translate questions to SQL and retrieve database data"
+                  : "Agent mode — multi-step reasoning + CRM actions"}
               </div>
-              <AgentModeToggle
-                enabled={agentMode}
-                onChange={setAgentMode}
-                isAdmin={isAdmin}
+              <AssistantModeSelector
+                mode={assistantMode}
+                onChange={setAssistantMode}
+                disabled={sending}
               />
             </div>
 
@@ -592,20 +611,33 @@ const AIAssistantPage = () => {
               {activeToken && messages.length === 0 && !loadingSession && (
                 <div className="space-y-3">
                   <p className="text-sm text-slate-600">
-                    {agentMode ? "Try an agent workflow:" : "Try one of these:"}
+                    {assistantMode === "agent"
+                      ? "Try an agent workflow:"
+                      : assistantMode === "query"
+                      ? "Try one of these data queries:"
+                      : "Ask a general question:"}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(agentMode ? AGENT_QUICK_PROMPTS : QUICK_PROMPTS).map((item) => (
+                    {(assistantMode === "agent"
+                      ? AGENT_QUICK_PROMPTS
+                      : assistantMode === "query"
+                      ? QUICK_PROMPTS
+                      : ASK_QUICK_PROMPTS
+                    ).map((item) => (
                       <button
                         key={item}
                         onClick={() => handleQuickPrompt(item)}
                         className={`text-left rounded-xl border p-3 text-sm transition-colors ${
-                          agentMode
-                            ? "border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50"
+                          assistantMode === "agent"
+                            ? "border-amber-200 bg-amber-50/40 text-amber-800 hover:border-amber-300 hover:bg-amber-50/70"
+                            : assistantMode === "query"
+                            ? "border-emerald-200 bg-emerald-50/40 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50/70"
                             : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                         }`}
                       >
-                        {agentMode && <span className="mr-1">⚡</span>}
+                        {assistantMode === "agent" && <span className="mr-1">⚡</span>}
+                        {assistantMode === "query" && <span className="mr-1">📊</span>}
+                        {assistantMode === "ask" && <span className="mr-1">💬</span>}
                         {item}
                       </button>
                     ))}

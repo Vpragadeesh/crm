@@ -16,24 +16,24 @@ export class CreateTaskTool {
 
     // 1. Validate required fields
     if (!title) {
-      throw new Error("'title' is required");
+      return { success: false, error: "'title' is required" };
     }
 
     // 2. Validate title length
     const titleStr = String(title).trim();
     if (titleStr.length === 0) {
-      throw new Error("'title' cannot be empty");
+      return { success: false, error: "'title' cannot be empty" };
     }
 
     if (titleStr.length > 255) {
-      throw new Error("'title' cannot exceed 255 characters");
+      return { success: false, error: "'title' cannot exceed 255 characters" };
     }
 
     // 3. Validate priority
     const validPriorities = ["low", "normal", "high"];
     const normalizedPriority = String(priority || "normal").toLowerCase();
     if (!validPriorities.includes(normalizedPriority)) {
-      throw new Error(`'priority' must be one of: ${validPriorities.join(", ")}`);
+      return { success: false, error: `'priority' must be one of: ${validPriorities.join(", ")}` };
     }
 
     // 4. Create task in CRM backend
@@ -47,12 +47,13 @@ export class CreateTaskTool {
         created_by: empId,
       });
     } catch (error) {
-      // Re-throw with context
-      throw new Error(`Failed to create task: ${error.message}`);
+      // Return gracefully instead of throwing
+      return { success: false, error: `Failed to create task: ${error.message}` };
     }
 
     // 5. Return tool result
     return {
+      success: true,
       task_id: task.id,
       title: task.title,
       priority: task.priority,
