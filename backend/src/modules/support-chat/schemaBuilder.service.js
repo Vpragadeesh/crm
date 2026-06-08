@@ -175,8 +175,11 @@ export class SchemaBuilderService {
 
       // Group columns by table
       const columnsByTable = columns.reduce((acc, col) => {
-        if (!acc[col.table_name]) acc[col.table_name] = [];
-        acc[col.table_name].push(col);
+        const tableName = col.table_name || col.TABLE_NAME;
+        if (tableName) {
+          if (!acc[tableName]) acc[tableName] = [];
+          acc[tableName].push(col);
+        }
         return acc;
       }, {});
 
@@ -196,7 +199,9 @@ export class SchemaBuilderService {
       }
 
       // Then add any remaining tables (non-priority)
-      for (const { table_name: tableName } of tables) {
+      for (const row of tables) {
+        const tableName = row.table_name || row.TABLE_NAME;
+        if (!tableName) continue;
         if (schemaContext.length >= maxTables) break;
         if (PRIORITY_SCHEMA_TABLES.includes(tableName)) continue; // Already added
         if (!columnsByTable[tableName]) continue;
@@ -226,16 +231,16 @@ export class SchemaBuilderService {
     for (const col of columns) {
       if (fields.length >= MAX_FIELDS_PER_TABLE) break;
 
-      const fieldName = String(col.column_name || "").trim();
-      const fieldType = mapDbTypeToSchemaType(col.column_type);
+      const fieldName = String(col.column_name || col.COLUMN_NAME || "").trim();
+      const fieldType = mapDbTypeToSchemaType(col.column_type || col.COLUMN_TYPE);
 
       if (!fieldName || !fieldType) continue;
 
       fields.push({
         name: fieldName,
         type: fieldType,
-        description: col.column_comment || `${fieldName} column in ${tableName}`,
-        is_primary_key: col.column_key === "PRI",
+        description: col.column_comment || col.COLUMN_COMMENT || `${fieldName} column in ${tableName}`,
+        is_primary_key: col.column_key === "PRI" || col.COLUMN_KEY === "PRI",
       });
     }
 

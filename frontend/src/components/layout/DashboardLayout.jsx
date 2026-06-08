@@ -23,24 +23,25 @@ const DashboardLayout = memo(() => {
   // Derive active stage and view from URL for header display
   const getActiveState = useCallback(() => {
     const path = location.pathname;
+    const cleanPath = path.replace(/^\/admin/, '');
     
     // Check workspace views first
-    if (path === '/analytics') return { view: 'analytics', stage: null };
-    if (path === '/calendar') return { view: 'calendar', stage: null };
-    if (path === '/gmail') return { view: 'gmail', stage: null };
-    if (path === '/chat') return { view: 'assistant', stage: null };
-    if (path === '/discuss') return { view: 'discuss', stage: null };
-    if (path === '/templates') return { view: 'templates', stage: null };
-    if (path === '/sequences') return { view: 'sequences', stage: null };
-    if (path === '/ab-tests') return { view: 'ab-tests', stage: null };
-    if (path === '/settings') return { view: 'settings', stage: null };
-    if (path === '/advanced-analytics') return { view: 'advanced-analytics', stage: null };
-    if (path.startsWith('/automations')) return { view: 'automations', stage: null };
-    if (path.startsWith('/pages')) return { view: 'pages', stage: null };
-    if (path.startsWith('/followups')) return { view: 'followups', stage: null };
+    if (cleanPath === '/analytics') return { view: 'analytics', stage: null };
+    if (cleanPath === '/calendar') return { view: 'calendar', stage: null };
+    if (cleanPath === '/gmail') return { view: 'gmail', stage: null };
+    if (cleanPath === '/chat') return { view: 'assistant', stage: null };
+    if (cleanPath === '/discuss') return { view: 'discuss', stage: null };
+    if (cleanPath === '/templates') return { view: 'templates', stage: null };
+    if (cleanPath === '/sequences') return { view: 'sequences', stage: null };
+    if (cleanPath === '/ab-tests') return { view: 'ab-tests', stage: null };
+    if (cleanPath === '/settings') return { view: 'settings', stage: null };
+    if (cleanPath === '/advanced-analytics') return { view: 'advanced-analytics', stage: null };
+    if (cleanPath.startsWith('/automations')) return { view: 'automations', stage: null };
+    if (cleanPath.startsWith('/pages')) return { view: 'pages', stage: null };
+    if (cleanPath.startsWith('/followups')) return { view: 'followups', stage: null };
     
     // Check sessions routes (/sessions/:stage)
-    const sessionsMatch = path.match(/^\/sessions\/([\w]+)$/);
+    const sessionsMatch = cleanPath.match(/^\/sessions\/([\w]+)$/);
     if (sessionsMatch) {
       const stageMap = {
         lead: 'LEAD',
@@ -56,7 +57,7 @@ const DashboardLayout = memo(() => {
     }
     
     // Check contact stages
-    const stageMatch = path.match(/^\/contacts\/(\w+)$/);
+    const stageMatch = cleanPath.match(/^\/contacts\/(\w+)$/);
     if (stageMatch) {
       const stageMap = {
         lead: 'LEAD',

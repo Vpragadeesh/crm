@@ -16,15 +16,15 @@ export class SendEmailTool {
 
     // 1. Validate required fields
     if (!to) {
-      throw new Error("'to' is required");
+      return { success: false, error: "'to' is required" };
     }
 
     if (!subject) {
-      throw new Error("'subject' is required");
+      return { success: false, error: "'subject' is required" };
     }
 
     if (!body) {
-      throw new Error("'body' is required");
+      return { success: false, error: "'body' is required" };
     }
 
     // 2. Normalize email addresses and validate format (RFC 5322 basic)
@@ -32,14 +32,14 @@ export class SendEmailTool {
 
     const toAddr = String(to).trim();
     if (!emailRegex.test(toAddr)) {
-      throw new Error(`Invalid email format for 'to': ${toAddr}`);
+      return { success: false, error: `Invalid email format for 'to': ${toAddr}` };
     }
 
     let ccAddr = null;
     if (cc) {
       ccAddr = String(cc).trim();
       if (ccAddr && !emailRegex.test(ccAddr)) {
-        throw new Error(`Invalid email format for 'cc': ${ccAddr}`);
+        return { success: false, error: `Invalid email format for 'cc': ${ccAddr}` };
       }
       if (!ccAddr) ccAddr = null;
     }
@@ -48,7 +48,7 @@ export class SendEmailTool {
     if (bcc) {
       bccAddr = String(bcc).trim();
       if (bccAddr && !emailRegex.test(bccAddr)) {
-        throw new Error(`Invalid email format for 'bcc': ${bccAddr}`);
+        return { success: false, error: `Invalid email format for 'bcc': ${bccAddr}` };
       }
       if (!bccAddr) bccAddr = null;
     }
@@ -56,20 +56,20 @@ export class SendEmailTool {
     // 3. Validate subject and body lengths
     const subjectStr = String(subject).trim();
     if (subjectStr.length === 0) {
-      throw new Error("'subject' cannot be empty");
+      return { success: false, error: "'subject' cannot be empty" };
     }
 
     if (subjectStr.length > 500) {
-      throw new Error("'subject' cannot exceed 500 characters");
+      return { success: false, error: "'subject' cannot exceed 500 characters" };
     }
 
     const bodyStr = String(body).trim();
     if (bodyStr.length === 0) {
-      throw new Error("'body' cannot be empty");
+      return { success: false, error: "'body' cannot be empty" };
     }
 
     if (bodyStr.length > 50000) {
-      throw new Error("'body' cannot exceed 50000 characters");
+      return { success: false, error: "'body' cannot exceed 50000 characters" };
     }
 
     // 4. Send email through CRM backend
@@ -84,11 +84,12 @@ export class SendEmailTool {
         from_user_id: empId,
       });
     } catch (error) {
-      throw new Error(`Failed to send email: ${error.message}`);
+      return { success: false, error: `Failed to send email: ${error.message}` };
     }
 
     // 5. Return tool result
     return {
+      success: true,
       email_id: email.id,
       to: email.to,
       subject: email.subject,

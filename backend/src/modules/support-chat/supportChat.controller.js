@@ -310,6 +310,12 @@ export const createSession = async (req, res, next) => {
       fallback_reason: sessionResult.schemaError || null,
     });
   } catch (error) {
+    if (error.message.includes("unavailable")) {
+      return res.status(503).json({
+        success: false,
+        message: "Cannot initialize session; support chat service unreachable"
+      });
+    }
     next(error);
   }
 };
@@ -367,6 +373,32 @@ export const sendMessage = async (req, res, next) => {
 
     if (message.length > 5000) {
       return res.status(400).json({ success: false, message: "message is too long" });
+    }
+
+    if (req.body?.askMode === true) {
+      const response = await supportChatService.insightFromResults(sessionId, {
+        message,
+        queryResult: [
+          {
+            instruction: "SYSTEM: This is Ask (conversational) mode. The system does not access the database to query data. Inform the user they are in Ask mode and cannot view live database statistics or run queries unless they switch to Query or Agent mode."
+          }
+        ],
+      });
+
+      await touchSessionMetaAfterMessage({ companyId, empId, sessionId, message });
+
+      return res.json({
+        success: true,
+        response: {
+          role: "assistant",
+          content: response.content || response.insight || "I'm in Ask mode.",
+          query: null,
+          query_result: null,
+          insight: response.insight || response.content || null,
+        },
+        visualization: { type: "none", message: "Ask mode is conversational; no database query was run." },
+        workflow: [],
+      });
     }
 
     const requestedExecution = req.body?.executeQuery !== false;
