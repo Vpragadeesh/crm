@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as dealController from "./deal.controller.js";
-// import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
+import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -20,7 +20,7 @@ const router = Router();
  */
 router.post(
   "/",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   dealController.createDeal
 );
 
@@ -34,7 +34,7 @@ router.post(
  */
 router.get(
   "/:id",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   dealController.getDealById
 );
 
@@ -48,7 +48,7 @@ router.get(
  */
 router.get(
   "/company/:companyId",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   dealController.getDealsByCompany
 );
 
