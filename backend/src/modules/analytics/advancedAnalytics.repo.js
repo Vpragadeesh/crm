@@ -485,15 +485,15 @@ export const getAutomationROI = async (companyId, filters = {}) => {
 export const getCallMetrics = async (companyId, filters = {}) => {
   const { startDate, endDate, employeeId } = filters;
 
-  let whereClause = "cl.company_id = ?";
+  let whereClause = "e.company_id = ?";
   const params = [companyId];
 
   if (startDate) {
-    whereClause += " AND cl.start_time >= ?";
+    whereClause += " AND cl.started_at >= ?";
     params.push(startDate);
   }
   if (endDate) {
-    whereClause += " AND cl.start_time <= ?";
+    whereClause += " AND cl.started_at <= ?";
     params.push(endDate);
   }
   if (employeeId) {
@@ -504,11 +504,12 @@ export const getCallMetrics = async (companyId, filters = {}) => {
   const [overviewRows] = await db.query(
     `SELECT
       COUNT(*) as total_calls,
-      SUM(CASE WHEN cl.status = 'COMPLETED' THEN 1 ELSE 0 END) as answered_calls,
-      SUM(CASE WHEN cl.status = 'MISSED' THEN 1 ELSE 0 END) as missed_calls,
-      ROUND(AVG(CASE WHEN cl.status = 'COMPLETED' THEN cl.duration ELSE NULL END), 2) as avg_duration,
-      ROUND(SUM(CASE WHEN cl.status = 'COMPLETED' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as connectivity_rate
+      SUM(CASE WHEN cl.status = 'completed' THEN 1 ELSE 0 END) as answered_calls,
+      SUM(CASE WHEN cl.status IN ('busy', 'failed', 'no-answer', 'canceled') THEN 1 ELSE 0 END) as missed_calls,
+      ROUND(AVG(CASE WHEN cl.status = 'completed' THEN cl.duration ELSE NULL END), 2) as avg_duration,
+      ROUND(SUM(CASE WHEN cl.status = 'completed' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as connectivity_rate
     FROM call_logs cl
+    JOIN employees e ON cl.employee_id = e.emp_id
     WHERE ${whereClause}`,
     params
   );
@@ -518,38 +519,42 @@ export const getCallMetrics = async (companyId, filters = {}) => {
   const byEmployeeWhereClauses = [];
 
   if (startDate) {
-    byEmployeeOnClauses.push('cl.start_time >= ?');
+    byEmployeeOnClauses.push('cl.started_at >= ?');
     byEmployeeParams.push(startDate);
   }
   if (endDate) {
-    byEmployeeOnClauses.push('cl.start_time <= ?');
+    byEmployeeOnClauses.push('cl.started_at <= ?');
     byEmployeeParams.push(endDate);
   }
+
+  byEmployeeParams.push(companyId);
+
   if (employeeId) {
-    byEmployeeWhereClauses.push('e.id = ?');
+    byEmployeeWhereClauses.push('e.emp_id = ?');
     byEmployeeParams.push(employeeId);
   }
 
   const byEmployeeQuery = `SELECT
-      e.id as employee_id,
-      CONCAT(e.first_name, ' ', e.last_name) as employee_name,
-      COUNT(cl.id) as total_calls,
-      SUM(CASE WHEN cl.status = 'COMPLETED' THEN 1 ELSE 0 END) as answered_calls,
-      ROUND(AVG(CASE WHEN cl.status = 'COMPLETED' THEN cl.duration ELSE NULL END), 2) as avg_duration
+      e.emp_id as employee_id,
+      e.name as employee_name,
+      COUNT(cl.call_log_id) as total_calls,
+      SUM(CASE WHEN cl.status = 'completed' THEN 1 ELSE 0 END) as answered_calls,
+      ROUND(AVG(CASE WHEN cl.status = 'completed' THEN cl.duration ELSE NULL END), 2) as avg_duration
     FROM employees e
     LEFT JOIN call_logs cl
-      ON e.id = cl.employee_id AND cl.company_id = e.company_id ${byEmployeeOnClauses.length ? 'AND ' + byEmployeeOnClauses.join(' AND ') : ''}
-    WHERE e.company_id = ? AND e.status = 'ACTIVE' ${byEmployeeWhereClauses.length ? 'AND ' + byEmployeeWhereClauses.join(' AND ') : ''}
-    GROUP BY e.id
+      ON e.emp_id = cl.employee_id ${byEmployeeOnClauses.length ? 'AND ' + byEmployeeOnClauses.join(' AND ') : ''}
+    WHERE e.company_id = ? ${byEmployeeWhereClauses.length ? 'AND ' + byEmployeeWhereClauses.join(' AND ') : ''}
+    GROUP BY e.emp_id
     ORDER BY total_calls DESC`;
 
-  const [byEmployeeRows] = await db.query(byEmployeeQuery, [...byEmployeeParams, companyId]);
+  const [byEmployeeRows] = await db.query(byEmployeeQuery, byEmployeeParams);
 
   const [statusRows] = await db.query(
     `SELECT
       cl.status,
       COUNT(*) as count
     FROM call_logs cl
+    JOIN employees e ON cl.employee_id = e.emp_id
     WHERE ${whereClause}
     GROUP BY cl.status`,
     params

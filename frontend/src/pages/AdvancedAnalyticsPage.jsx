@@ -45,7 +45,7 @@ const AdvancedAnalyticsPage = () => {
     { id: 'contact-lifecycle', label: 'Contact Lifecycle', icon: TrendingUp },
     { id: 'email-campaigns', label: 'Email Campaigns', icon: Mail },
     { id: 'automation-roi', label: 'Automation ROI', icon: Zap },
-    // { id: 'call-metrics', label: 'Call Metrics', icon: Phone },
+    { id: 'call-metrics', label: 'Call Metrics', icon: Phone },
   ];
 
   const handleRefresh = () => {
