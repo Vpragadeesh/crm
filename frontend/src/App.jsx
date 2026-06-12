@@ -420,6 +420,7 @@ function App() {
                               <Route path="team" element={<NestedSuspense><AdminTeamPage /></NestedSuspense>} />
 
                               {/* Contact Stage Routes - Same as employee */}
+                              <Route path="contacts" element={<Navigate to="/admin/contacts/lead" replace />} />
                               <Route path="contacts/:stage" element={<NestedSuspense><ContactsPage /></NestedSuspense>} />
 
                               {/* Session/Followup Stage Routes - Same as employee */}
