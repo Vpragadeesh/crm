@@ -25,6 +25,7 @@ import ProductAnalytics from "./ProductAnalytics";
 import YearlyActivityHeatmap from "./YearlyActivityHeatmap";
 import { lazy, Suspense } from "react";
 import { DollarSign } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 // Lazy load InsightsPanel for better performance
 const InsightsPanel = lazy(() => import("./InsightsPanel"));
@@ -72,6 +73,7 @@ const TEMPERATURE_COLORS = {
 };
 
 export default function AnalyticsDashboard() {
+  const { isAdmin } = useAuth();
   // Use cached data as initial state (instant render if available)
   const [analytics, setAnalytics] = useState(() =>
     isCacheValid() ? analyticsCache.data : null
@@ -341,18 +343,20 @@ export default function AnalyticsDashboard() {
               <span>Products</span>
             </div>
           </button>
-          <button
-            onClick={() => setActiveTab('advanced')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'advanced'
-              ? 'border-sky-500 text-sky-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            <div className="flex items-center gap-2">
-              <Package className="w-4 h-4" />
-              <span>Advanced-Analytics</span>
-            </div>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('advanced')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'advanced'
+                ? 'border-sky-500 text-sky-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                <span>Advanced-Analytics</span>
+              </div>
+            </button>
+          )}
 
         </nav>
       </div>
@@ -364,7 +368,7 @@ export default function AnalyticsDashboard() {
         </Suspense>
       ) : activeTab === 'products' ? (
         <ProductAnalytics />
-      ) : activeTab === 'advanced' ? (
+      ) : activeTab === 'advanced' && isAdmin ? (
         <Suspense fallback={<div className="p-6 text-center text-gray-500">Loading Advanced Analytics...</div>}>
           <AdvancedAnalyticsPage />
         </Suspense>
