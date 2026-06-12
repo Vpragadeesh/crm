@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as contactController from "./contact.controller.js";
-import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
+import { authenticateEmployee, authenticateInternalSystem } from "../../middlewares/auth.middleware.js";
 import { requireAdmin } from "../../middlewares/role.middleware.js";
 import availabilityRoutes from "./availability.routes.js";
 import multer from "multer";
@@ -86,6 +86,7 @@ router.patch(
 // Internal endpoint (Marketing Automation)
 router.post(
   "/internal/lead-activity",
+  authenticateInternalSystem,
   contactController.handleLeadActivity
 );
 

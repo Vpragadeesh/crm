@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as feedbackController from "./feedback.controller.js";
-// import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
+import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -35,7 +35,7 @@ router.post(
  */
 router.get(
   "/contact/:contactId",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   feedbackController.getFeedbackByContact
 );
 
@@ -49,7 +49,7 @@ router.get(
  */
 router.get(
   "/contact/:contactId/summary",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   feedbackController.getFeedbackSummary
 );
 
