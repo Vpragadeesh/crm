@@ -76,51 +76,6 @@ const SalesPipelineCard = ({ filters, onLoadTime }) => {
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-blue-700">Total Pipeline</span>
-            <Target className="w-5 h-5 text-blue-600" />
-          </div>
-          <p className="text-2xl font-bold text-blue-900">{totalContacts}</p>
-          <p className="text-xs text-blue-600 mt-1">Contacts</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-green-700">Total Revenue</span>
-            <DollarSign className="w-5 h-5 text-green-600" />
-          </div>
-          <p className="text-2xl font-bold text-green-900">
-            ${revenue.total_revenue.toLocaleString()}
-          </p>
-          <p className="text-xs text-green-600 mt-1">{revenue.total_deals} deals closed</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-purple-700">Avg Deal Value</span>
-            <TrendingUp className="w-5 h-5 text-purple-600" />
-          </div>
-          <p className="text-2xl font-bold text-purple-900">
-            ${Math.round(revenue.avg_deal_value).toLocaleString()}
-          </p>
-          <p className="text-xs text-purple-600 mt-1">Per closed deal</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-orange-700">Lead → MQL</span>
-            <Clock className="w-5 h-5 text-orange-600" />
-          </div>
-          <p className="text-2xl font-bold text-orange-900">
-            {conversions[0]?.rate || 0}%
-          </p>
-          <p className="text-xs text-orange-600 mt-1">Conversion rate</p>
-        </div>
-      </div>
-
       {/* Funnel Visualization */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Pipeline Funnel</h3>
@@ -208,6 +163,51 @@ const SalesPipelineCard = ({ filters, onLoadTime }) => {
           </div>
         </div>
       )}
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-blue-700">Total Pipeline</span>
+            <Target className="w-5 h-5 text-blue-600" />
+          </div>
+          <p className="text-2xl font-bold text-blue-900">{totalContacts}</p>
+          <p className="text-xs text-blue-600 mt-1">Contacts</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-green-700">Total Revenue</span>
+            <DollarSign className="w-5 h-5 text-green-600" />
+          </div>
+          <p className="text-2xl font-bold text-green-900">
+            ${revenue.total_revenue.toLocaleString()}
+          </p>
+          <p className="text-xs text-green-600 mt-1">{revenue.total_deals} deals closed</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-purple-700">Avg Deal Value</span>
+            <TrendingUp className="w-5 h-5 text-purple-600" />
+          </div>
+          <p className="text-2xl font-bold text-purple-900">
+            ${Math.round(revenue.avg_deal_value).toLocaleString()}
+          </p>
+          <p className="text-xs text-purple-600 mt-1">Per closed deal</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-orange-700">Lead → MQL</span>
+            <Clock className="w-5 h-5 text-orange-600" />
+          </div>
+          <p className="text-2xl font-bold text-orange-900">
+            {conversions[0]?.rate || 0}%
+          </p>
+          <p className="text-xs text-orange-600 mt-1">Conversion rate</p>
+        </div>
+      </div>
     </div>
   );
 };
