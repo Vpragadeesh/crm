@@ -45,6 +45,12 @@ export const getDealById = async (req, res, next) => {
       });
     }
 
+    if (deal.company_id !== req.user.companyId) {
+      return res.status(403).json({
+        message: "Forbidden: You do not have access to this deal",
+      });
+    }
+
     res.json(deal);
   } catch (error) {
     next(error);
@@ -59,7 +65,7 @@ export const getDealById = async (req, res, next) => {
 export const getDealsByCompany = async (req, res, next) => {
   try {
     const deals = await dealService.getDealsByCompany(
-      req.params.companyId
+      req.user.companyId
     );
 
     res.json(deals);

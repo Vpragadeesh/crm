@@ -95,20 +95,6 @@ router.patch(
 );
 
 /* ---------------------------------------------------
-   GET EMPLOYEE BY ID
---------------------------------------------------- */
-/**
- * @route   GET /employees/:id
- * @desc    Get employee by ID
- * @access  Employee
- */
-router.get(
-  "/:id",
-  authenticateEmployee,
-  employeeController.getEmployeeById
-);
-
-/* ---------------------------------------------------
    GET EMPLOYEES BY COMPANY
 --------------------------------------------------- */
 /**
@@ -120,6 +106,20 @@ router.get(
   "/company/:companyId",
   authenticateEmployee,
   employeeController.getEmployeesByCompany
+);
+
+/* ---------------------------------------------------
+   GET EMPLOYEE BY ID
+--------------------------------------------------- */
+/**
+ * @route   GET /employees/:id
+ * @desc    Get employee by ID
+ * @access  Employee
+ */
+router.get(
+  "/:id",
+  authenticateEmployee,
+  employeeController.getEmployeeById
 );
 
 /* ---------------------------------------------------
