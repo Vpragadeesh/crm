@@ -104,7 +104,17 @@ app.set('trust proxy', process.env.TRUST_PROXY || true);
 //   cross-origin <audio>/<img> loaded from backend:3000 on frontend:5173
 app.use(helmet({
   crossOriginResourcePolicy: false,
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      mediaSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "https:", "wss:"],
+      frameAncestors: ["'self'"],
+    },
+  },
 }));
 
 // CORS - Cross-Origin Resource Sharing
@@ -458,7 +468,7 @@ const server = httpServer.listen(PORT, HOST, async () => {
   }
 });
 
-// Handle shutdown signalsanagement.f.aivencloud.com:12247/defaultdb?ssl-mode=REQUIRED
+// Handle shutdown signals
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 

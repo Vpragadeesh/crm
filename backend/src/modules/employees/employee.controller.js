@@ -247,6 +247,12 @@ export const getEmployeeById = async (req, res, next) => {
       });
     }
 
+    if (employee.company_id !== req.user.companyId) {
+      return res.status(403).json({
+        message: "Forbidden: You do not have access to this employee's details",
+      });
+    }
+
     // Remove sensitive fields
     delete employee.password;
 
@@ -264,7 +270,7 @@ export const getEmployeeById = async (req, res, next) => {
 export const getEmployeesByCompany = async (req, res, next) => {
   try {
     const employees = await employeeService.getEmployeesByCompany(
-      req.params.companyId
+      req.user.companyId
     );
 
     res.json(employees);
@@ -312,7 +318,39 @@ export const getProfile = async (req, res, next) => {
  */
 export const updateEmployee = async (req, res, next) => {
   try {
-    await employeeService.updateEmployee(req.params.id, req.body);
+    const targetId = req.params.id;
+    const employee = await employeeService.getEmployeeById(targetId);
+
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found",
+      });
+    }
+
+    // Tenant Isolation: Cannot update employee from another company
+    if (employee.company_id !== req.user.companyId) {
+      return res.status(403).json({
+        message: "Forbidden: You do not have access to this employee",
+      });
+    }
+
+    const isSelf = Number(targetId) === Number(req.user.empId);
+    const isAdmin = req.user.role === 'ADMIN';
+
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({
+        message: "Forbidden: You are not authorized to update this employee",
+      });
+    }
+
+    // If not admin, strip fields they shouldn't be allowed to change
+    if (!isAdmin) {
+      delete req.body.role;
+      delete req.body.department;
+      delete req.body.company_id;
+    }
+
+    await employeeService.updateEmployee(targetId, req.body);
 
     res.json({
       message: "Employee updated successfully",

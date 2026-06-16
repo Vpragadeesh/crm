@@ -45,7 +45,14 @@ export const authenticateInternalSystem = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     const apiKeyHeader = req.headers["x-api-key"] || req.headers["x-internal-secret"];
-    const expectedSecret = process.env.INTERNAL_API_KEY || "internal-marketing-secret-key-12345";
+    const expectedSecret = process.env.INTERNAL_API_KEY;
+
+    if (!expectedSecret) {
+      console.error("⚠️ INTERNAL_API_KEY is not configured. Rejecting internal request.");
+      return res.status(401).json({
+        message: "Internal API key is not configured on the server",
+      });
+    }
 
     let token = null;
     if (authHeader && authHeader.startsWith("Bearer ")) {

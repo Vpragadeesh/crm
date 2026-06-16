@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import twilio from 'twilio';
 import * as callController from './call.controller.js';
 import { authenticateEmployee } from '../../middlewares/auth.middleware.js';
 import { requireAdmin } from '../../middlewares/role.middleware.js';
@@ -10,15 +11,15 @@ const router = Router();
 ===================================================== */
 
 // Twilio status webhook
-router.post('/webhook/status', callController.handleCallStatusWebhook);
+router.post('/webhook/status', twilio.webhook(), callController.handleCallStatusWebhook);
 
 // Twilio recording webhook
-router.post('/webhook/recording', callController.handleRecordingWebhook);
+router.post('/webhook/recording', twilio.webhook(), callController.handleRecordingWebhook);
 
 
 // TwiML endpoints
-router.post('/twiml/connect', callController.getTwiMLConnect);
-router.post('/twiml/voicemail', callController.getTwiMLVoicemail);
+router.post('/twiml/connect', twilio.webhook(), callController.getTwiMLConnect);
+router.post('/twiml/voicemail', twilio.webhook(), callController.getTwiMLVoicemail);
 
 /* =====================================================
    PROTECTED ROUTES (Employee Authentication Required)

@@ -86,6 +86,13 @@ export const getContactById = async (req, res, next) => {
     if (!contact) {
       return res.status(404).json({ message: "Contact not found" });
     }
+
+    if (contact.company_id !== req.user.companyId) {
+      return res.status(403).json({
+        message: "Forbidden: You do not have access to this contact",
+      });
+    }
+
     res.json(contact);
   } catch (error) {
     next(error);

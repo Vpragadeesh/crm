@@ -31,9 +31,11 @@ export const createDeal = async (data) => {
 export const getById = async (dealId) => {
   const [rows] = await db.query(
     `
-    SELECT *
-    FROM deals
-    WHERE deal_id = ?
+    SELECT d.*, c.company_id
+    FROM deals d
+    JOIN opportunities o ON o.opportunity_id = d.opportunity_id
+    JOIN contacts c ON c.contact_id = o.contact_id
+    WHERE d.deal_id = ?
     `,
     [dealId]
   );
