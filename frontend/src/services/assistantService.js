@@ -23,14 +23,16 @@ export const getAssistantHistory = async (sessionToken) => {
   return data;
 };
 
-export const sendAssistantMessage = async (sessionToken, payload) => {
-  const { data } = await api.post(`/assistant/sessions/${sessionToken}/chat`, payload);
-  return data;
-};
-
-export const sendAgentMessage = async (sessionToken, message) => {
-  const { data } = await api.post(`/assistant/sessions/${sessionToken}/chat/agent`, {
+/**
+ * Send one chat turn. The mode (ask | visualize | agent) selects how the
+ * support-chat microservice handles the message. `confirmed` resumes a paused
+ * destructive AGENT action returned via requires_confirmation/pending_action.
+ */
+export const sendAssistantMessage = async (sessionToken, { message, mode = "ask", confirmed = false }) => {
+  const { data } = await api.post(`/assistant/sessions/${sessionToken}/chat`, {
     message,
+    mode,
+    confirmed,
   });
   return data;
 };

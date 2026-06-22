@@ -90,6 +90,41 @@ const buildInsecureSupportChatDbUrl = (sourceUrl) => {
   return parsed.toString();
 };
 
+/**
+ * Resolve the database URL the support-chat microservice should use to execute
+ * VISUALIZE/AGENT queries. Prefer an explicit SUPPORT_CHAT_DB_URL (lets ops hand
+ * the service the exact SQLAlchemy URL + SSL story it needs); otherwise convert
+ * the CRM's own DATABASE_URL to the mysql+pymysql scheme. Returns null when
+ * neither is configured (the service then falls back to schema_context only).
+ */
+const SSL_REQUIRED_RE = /ssl-?mode=required|ssl=true|sslmode=require/i;
+
+export const buildCrmDbUrl = () => {
+  const override = process.env.SUPPORT_CHAT_DB_URL;
+  if (override) return override;
+
+  const source = process.env.DATABASE_URL;
+  const base = buildSupportChatDbUrl(source); // scheme-converted, original query stripped
+  if (!base) return null;
+
+  // Managed MySQL (e.g. Aiven) requires TLS. The original ?ssl-mode=REQUIRED is
+  // stripped during conversion, so re-enable TLS for the microservice's pymysql
+  // engine. We use unverified TLS (encrypted, no CA check) because the CRM cannot
+  // ship its CA to the microservice; the service verifies its own DATABASE_URL via
+  // DB_SSL_CA_B64 separately. pymysql/SQLAlchemy honor ssl_verify_cert/identity.
+  if (source && SSL_REQUIRED_RE.test(source)) {
+    try {
+      const parsed = new URL(base);
+      parsed.searchParams.set("ssl_verify_cert", "false");
+      parsed.searchParams.set("ssl_verify_identity", "false");
+      return parsed.toString();
+    } catch {
+      return `${base}?ssl_verify_cert=false&ssl_verify_identity=false`;
+    }
+  }
+  return base;
+};
+
 const normalizeErrorDetail = (detail) => {
   if (!detail) return null;
 
@@ -337,7 +372,7 @@ export const createSession = async ({ queryType = "mysql", systemInstructions = 
     body: JSON.stringify({
       query_type: queryType,
       schema_context: schemaContext,
-      db_url: null,
+      db_url: buildCrmDbUrl(),
       system_instructions: fullInstructions,
     }),
   });
@@ -345,7 +380,7 @@ export const createSession = async ({ queryType = "mysql", systemInstructions = 
   return {
     ...session,
     has_db_connection: true,
-    execution_mode: "crm_backend",
+    execution_mode: "support_chat",
   };
 };
 
@@ -365,6 +400,28 @@ export const sendMessage = async (sessionId, payload) => {
   return supportChatFetch(`/sessions/${sessionId}/chat`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+};
+
+/**
+ * Send one conversation turn using the support-chat v0.x mode-dispatched
+ * contract. The microservice itself runs the work for each mode:
+ *   - ask       → RAG-grounded answer, no DB access
+ *   - visualize → generates + executes tenant-scoped SQL, returns rows + chart spec
+ *   - agent     → ReAct loop that calls back into the CRM REST API
+ *
+ * The employee JWT is forwarded so VISUALIZE tenant-scoping and AGENT tool calls
+ * run as the signed-in user. `confirmed` resumes a paused destructive AGENT action.
+ */
+export const chat = async (sessionId, { message, mode = "ask", confirmed = false }, { authToken } = {}) => {
+  return supportChatFetch(`/sessions/${sessionId}/chat`, {
+    method: "POST",
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    body: JSON.stringify({
+      message,
+      mode,
+      confirmed: Boolean(confirmed),
+    }),
   });
 };
 

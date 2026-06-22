@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { db } from "../../config/db.js";
 import supportChatV2Service from "./supportChatV2.service.js";
 import schemaBuilder from "./schemaBuilder.service.js";
+import { buildCrmDbUrl } from "./supportChat.service.js";
 
 const SESSION_TOKEN_SECRET = process.env.SUPPORT_CHAT_SESSION_SECRET || process.env.JWT_SECRET;
 const SESSION_TOKEN_TTL = process.env.SUPPORT_CHAT_SESSION_TOKEN_TTL || "8h";
@@ -22,10 +23,14 @@ export class SessionManagerService {
   async initializeSession(companyId, empId, options = {}) {
     const {
       queryType = "mysql",
-      dbUrl = null,
       agentMode = true,
       systemInstructions = "",
     } = options;
+
+    // Default to the CRM's own database so the microservice can execute
+    // tenant-scoped VISUALIZE queries; an explicit dbUrl (or SUPPORT_CHAT_DB_URL)
+    // overrides this.
+    const dbUrl = options.dbUrl || buildCrmDbUrl();
 
     // 1. Build schema context from CRM database
     let schemaContext = [];

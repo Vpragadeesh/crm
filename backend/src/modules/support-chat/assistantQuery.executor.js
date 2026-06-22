@@ -75,7 +75,7 @@ const TENANT_SCOPED_TABLES = [
   "call_logs",
 ];
 
-const isReadOnlyQuery = (query) => {
+export const isReadOnlyQuery = (query) => {
   const upper = String(query || "").toUpperCase().trim();
   const firstWord = upper.split(/\s+/)[0] || "";
   if (WRITE_KEYWORDS.has(firstWord)) return false;
@@ -86,12 +86,12 @@ const isReadOnlyQuery = (query) => {
   return true;
 };
 
-const mentionsTenantTable = (query) => {
+export const mentionsTenantTable = (query) => {
   const upper = String(query || "").toUpperCase();
   return TENANT_SCOPED_TABLES.some((table) => new RegExp(`\\b${table.toUpperCase()}\\b`).test(upper));
 };
 
-const hasCompanyScope = (query, companyId) => {
+export const hasCompanyScope = (query, companyId) => {
   const id = String(companyId);
   const patterns = [
     new RegExp(`\\bcompany_id\\b\\s*=\\s*['"]?${id}['"]?`, "i"),
@@ -240,4 +240,31 @@ export const executeReadOnlyQuery = async (query, { companyId }) => {
     executedQuery: boundedQuery,
     wasScoped: boundedQuery !== normalized.replace(/;\s*$/, "").trim(),
   };
+};
+
+/**
+ * Defense-in-depth guard for queries that were executed by the support-chat
+ * microservice (VISUALIZE / AGENT modes). The microservice already enforces
+ * tenant isolation from the forwarded JWT, but the CRM independently validates
+ * any query it reports back before trusting the returned rows.
+ *
+ * Returns { ok, reason }. A failing guard means the CRM should NOT surface the
+ * rows to the user (potential cross-tenant leak or a non-read-only statement).
+ */
+export const validateExecutedQuery = (query, companyId) => {
+  const normalized = String(query || "").trim();
+  if (!normalized) return { ok: true, reason: null };
+
+  if (!isReadOnlyQuery(normalized)) {
+    return { ok: false, reason: "Executed query was not read-only (write/DDL detected)." };
+  }
+
+  if (mentionsTenantTable(normalized) && !hasCompanyScope(normalized, companyId)) {
+    return {
+      ok: false,
+      reason: `Executed query is missing tenant scope (expected company_id = ${companyId}).`,
+    };
+  }
+
+  return { ok: true, reason: null };
 };

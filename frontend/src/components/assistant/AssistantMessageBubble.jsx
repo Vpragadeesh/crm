@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Database } from "lucide-react";
+import { ChevronDown, ChevronUp, Database, BookOpen } from "lucide-react";
 import AssistantDataChart from "./AssistantDataChart";
 import AgentReasoningPanel from "./AgentReasoningPanel";
 import ToolsSummary from "./ToolsSummary";
@@ -76,6 +76,24 @@ export default function AssistantMessageBubble({ message, isLatest, isAdmin }) {
               reasoning={message.agent_reasoning}
               autoExpand={isLatest}
             />
+          </div>
+        )}
+
+        {/* RAG source citations (ASK mode) */}
+        {isAssistant && Array.isArray(message.sources) && message.sources.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
+              <BookOpen className="w-3.5 h-3.5" /> Sources:
+            </span>
+            {message.sources.map((src, i) => (
+              <span
+                key={`${src.source || "src"}-${i}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-[11px] text-slate-600"
+                title={src.distance != null ? `relevance distance: ${src.distance}` : undefined}
+              >
+                {src.source || "document"}
+              </span>
+            ))}
           </div>
         )}
 

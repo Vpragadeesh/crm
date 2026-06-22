@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import * as supportChatService from "./supportChat.service.js";
-import { executeReadOnlyQuery } from "./assistantQuery.executor.js";
-import { buildVisualization } from "./assistantVisualization.js";
+import { validateExecutedQuery } from "./assistantQuery.executor.js";
 import { db } from "../../config/db.js";
 import toolAuditLog from "./toolAuditLog.service.js";
 import sessionManager from "./sessionManager.service.js";
@@ -9,9 +8,46 @@ import sessionManager from "./sessionManager.service.js";
 const SESSION_TOKEN_SECRET = process.env.SUPPORT_CHAT_SESSION_SECRET || process.env.JWT_SECRET;
 const SESSION_TOKEN_TTL = process.env.SUPPORT_CHAT_SESSION_TOKEN_TTL || "8h";
 const SUPPORTED_QUERY_TYPES = new Set(["sql", "mysql", "postgresql", "sqlite", "mongodb", "pandas"]);
+const SUPPORTED_MODES = new Set(["ask", "visualize", "agent"]);
 const MAX_RESULT_ROWS = 200;
 const MAX_SESSION_TITLE_LENGTH = 120;
 const MAX_SESSION_PREVIEW_LENGTH = 240;
+
+/** Extract the raw Bearer token from the incoming request to forward upstream. */
+const extractAuthToken = (req) => {
+  const header = req.headers?.authorization || "";
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  return match ? match[1] : null;
+};
+
+/**
+ * Normalize the microservice's agent_reasoning (and tool_results) into the shape
+ * the frontend AgentReasoningPanel / ToolsSummary expect:
+ *   { step, node, tool_name, tool_input, tool_result, action }
+ */
+const normalizeAgentReasoning = (reasoning, toolResults) => {
+  if (!Array.isArray(reasoning) || reasoning.length === 0) return null;
+
+  const resultByToolName = {};
+  if (Array.isArray(toolResults)) {
+    for (const tr of toolResults) {
+      const name = tr?.tool || tr?.tool_name;
+      if (name && tr?.result !== undefined) resultByToolName[name] = tr.result;
+    }
+  }
+
+  return reasoning.map((step, index) => {
+    const toolName = step.tool_name || step.tool || undefined;
+    return {
+      step: step.step || index + 1,
+      node: toolName ? "execute_tool" : "reason",
+      tool_name: toolName,
+      tool_input: step.tool_input || undefined,
+      tool_result: step.tool_result ?? (toolName ? resultByToolName[toolName] : undefined),
+      action: step.action || step.thought || (toolName ? `Called ${toolName}` : ""),
+    };
+  });
+};
 
 const buildGuardrailInstructions = ({ companyId, empId, role }) => {
   return [
@@ -362,175 +398,111 @@ export const getHistory = async (req, res, next) => {
 
 export const sendMessage = async (req, res, next) => {
   try {
+    const { companyId, empId } = req.user;
     const sessionId = resolveSessionId(req.params.sessionToken, req.user);
-    const companyId = req.user.companyId;
-    const empId = req.user.empId;
     const message = String(req.body?.message || "").trim();
 
     if (!message) {
       return res.status(400).json({ success: false, message: "message is required" });
     }
-
     if (message.length > 5000) {
-      return res.status(400).json({ success: false, message: "message is too long" });
+      return res.status(400).json({ success: false, message: "message is too long (max 5000 characters)" });
     }
 
-    if (req.body?.askMode === true) {
-      const response = await supportChatService.insightFromResults(sessionId, {
-        message,
-        queryResult: [
-          {
-            instruction: "SYSTEM: This is Ask (conversational) mode. The system does not access the database to query data. Inform the user they are in Ask mode and cannot view live database statistics or run queries unless they switch to Query or Agent mode."
-          }
-        ],
+    // Resolve the interaction mode (ask | visualize | agent).
+    const mode = String(req.body?.mode || "ask").toLowerCase();
+    if (!SUPPORTED_MODES.has(mode)) {
+      return res.status(400).json({
+        success: false,
+        message: "Unsupported mode. Must be one of: ask, visualize, agent",
       });
+    }
 
+    // Agent mode is feature-flagged at the environment level.
+    if (mode === "agent" && process.env.AGENT_MODE_ENABLED !== "true") {
+      return res.status(403).json({
+        success: false,
+        message: "Agent mode is currently disabled in this environment.",
+      });
+    }
+
+    const confirmed = req.body?.confirmed === true;
+    const authToken = extractAuthToken(req);
+
+    // Single mode-dispatched call. The microservice executes VISUALIZE SQL and
+    // runs the AGENT ReAct loop itself; the forwarded JWT scopes both to this user.
+    const raw = await supportChatService.chat(
+      sessionId,
+      { message, mode, confirmed },
+      { authToken }
+    );
+
+    // ---- Defense-in-depth: validate any query the service reports it ran ----
+    const executedQuery = raw.executed_query || raw.query || null;
+    let queryResult = Array.isArray(raw.query_result) ? raw.query_result : null;
+    let tenantWarning = null;
+
+    if (executedQuery) {
+      const guard = validateExecutedQuery(executedQuery, companyId);
+      if (!guard.ok) {
+        // The service already executed; the CRM refuses to surface the rows and warns.
+        tenantWarning = guard.reason;
+        queryResult = null;
+        console.warn(
+          `[assistant] tenant guard rejected results (company ${companyId}, emp ${empId}): ${guard.reason} :: ${executedQuery}`
+        );
+      }
+    }
+
+    const requiresConfirmation = raw.requires_confirmation === true;
+    const pendingAction = raw.pending_action || null;
+    const agentReasoning = normalizeAgentReasoning(raw.agent_reasoning, raw.tool_results);
+
+    let content = raw.content || raw.insight || "";
+    if (tenantWarning) {
+      content = `${content}\n\n⚠️ ${tenantWarning}`.trim();
+    }
+
+    // Persist session metadata. Skip title/preview churn on a confirmation
+    // continuation (the user is resending the same message with confirmed:true).
+    if (!confirmed) {
       await touchSessionMetaAfterMessage({ companyId, empId, sessionId, message });
-
-      return res.json({
-        success: true,
-        response: {
-          role: "assistant",
-          content: response.content || response.insight || "I'm in Ask mode.",
-          query: null,
-          query_result: null,
-          insight: response.insight || response.content || null,
-        },
-        visualization: { type: "none", message: "Ask mode is conversational; no database query was run." },
-        workflow: [],
-      });
     }
 
-    const requestedExecution = req.body?.executeQuery !== false;
-    const generateInsight = req.body?.generateInsight !== false;
-    const externalResult = req.body?.queryResult ?? null;
-
-    const workflow = [];
-
-    if (externalResult !== null) {
-      workflow.push(
-        { id: "insight", label: "Generating insight from provided data", status: "active" },
+    if (agentReasoning) {
+      const uniqueTools = [...new Set(agentReasoning.filter((s) => s.tool_name).map((s) => s.tool_name))];
+      const reasoningSummary = agentReasoning.map((s) => `Step ${s.step}: ${s.action}`).join(" → ");
+      await db.query(
+        `
+          UPDATE assistant_chat_sessions
+          SET last_agent_step_count = ?, agent_tools_used = ?, reasoning_trace_summary = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE support_chat_session_id = ? AND company_id = ? AND emp_id = ? AND deleted_at IS NULL
+        `,
+        [agentReasoning.length, JSON.stringify(uniqueTools), reasoningSummary.slice(0, 5000), sessionId, companyId, empId]
       );
-
-      const response = await supportChatService.insightFromResults(sessionId, {
-        message,
-        queryResult: externalResult,
-      });
-
-      workflow[0].status = "done";
-
-      const visualization = buildVisualization(externalResult, { title: "Results" });
-
-      await touchSessionMetaAfterMessage({ companyId, empId, sessionId, message });
-
-      return res.json({
-        success: true,
-        response,
-        visualization,
-        workflow,
-      });
     }
-
-    workflow.push({ id: "translate", label: "Translating your question to SQL", status: "active" });
-
-    const translation = await supportChatService.translateMessage(sessionId, message);
-    workflow[0].status = "done";
-
-    let generatedQuery = String(translation?.query || "").trim();
-    let executedQuery = generatedQuery;
-    let response = translation;
-    let queryResult = null;
-    let visualization = null;
-    let executionError = null;
-    let tenantScoped = false;
-
-    if (!generatedQuery) {
-      await touchSessionMetaAfterMessage({ companyId, empId, sessionId, message });
-      return res.json({
-        success: true,
-        response,
-        visualization: { type: "none", message: "No query was required for this answer." },
-        workflow,
-      });
-    }
-
-    if (requestedExecution) {
-      workflow.push({ id: "execute", label: "Fetching data from CRM database", status: "active" });
-
-      try {
-        const execution = await executeReadOnlyQuery(generatedQuery, {
-          companyId,
-          empId,
-          role: req.user.role,
-        });
-        queryResult = execution.rows;
-        executedQuery = execution.executedQuery;
-        tenantScoped = execution.wasScoped;
-        workflow[workflow.length - 1].status = "done";
-      } catch (error) {
-        executionError = error.message || "Query execution failed";
-        workflow[workflow.length - 1].status = "error";
-        response = {
-          ...translation,
-          content: `${translation.content || translation.explanation || ""}\n\n⚠️ ${executionError}`.trim(),
-          query: executedQuery || generatedQuery,
-          query_result: null,
-          insight: null,
-        };
-
-        await touchSessionMetaAfterMessage({ companyId, empId, sessionId, message });
-        return res.json({
-          success: true,
-          response,
-          visualization: { type: "error", message: executionError, query: generatedQuery },
-          workflow,
-          executionError,
-        });
-      }
-
-      workflow.push({ id: "visualize", label: "Preparing chart", status: "active" });
-      visualization = buildVisualization(queryResult, {
-        title: "CRM data",
-        query: executedQuery,
-      });
-      workflow[workflow.length - 1].status = "done";
-
-      if (generateInsight && queryResult) {
-        workflow.push({ id: "insight", label: "Summarizing with AI", status: "active" });
-        const insightResponse = await supportChatService.insightFromResults(sessionId, {
-          message,
-          queryResult,
-        });
-        workflow[workflow.length - 1].status = "done";
-
-        response = {
-          ...insightResponse,
-          query: executedQuery,
-          query_result: queryResult,
-          insight: insightResponse.insight || insightResponse.content,
-          content: insightResponse.insight || insightResponse.content || translation.content,
-        };
-      } else {
-        response = {
-          ...translation,
-          query: executedQuery,
-          query_result: queryResult,
-          content: translation.explanation || translation.content,
-        };
-      }
-
-    }
-
-    await touchSessionMetaAfterMessage({ companyId, empId, sessionId, message });
 
     res.json({
       success: true,
-      response,
-      visualization,
-      workflow,
-      executionError,
-      tenantScoped,
-      executedQuery,
+      requires_confirmation: requiresConfirmation,
+      pending_action: pendingAction,
+      response: {
+        role: "assistant",
+        mode,
+        content,
+        query: executedQuery,
+        query_result: queryResult,
+        sources: raw.sources || null,
+        agent_reasoning: agentReasoning,
+        tool_results: raw.tool_results || null,
+        error: raw.error || null,
+      },
+      // Charts are built client-side from query_result; the service's chart
+      // hint (chart_type / x / y / title) is passed through for reference.
+      visualization: null,
+      chartHint: raw.visualization || null,
+      tenantWarning,
+      workflow: [],
     });
   } catch (error) {
     next(error);
@@ -587,82 +559,6 @@ export const deleteSession = async (req, res, next) => {
     );
 
     res.status(204).send();
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const sendAgentMessage = async (req, res, next) => {
-  try {
-    if (process.env.AGENT_MODE_ENABLED !== "true") {
-      return res.status(403).json({ success: false, message: "Agent mode is currently disabled in this environment." });
-    }
-
-    const { companyId, empId } = req.user;
-    const sessionId = resolveSessionId(req.params.sessionToken, req.user);
-    const message = String(req.body?.message || "").trim();
-
-    if (!message) {
-      return res.status(400).json({ success: false, message: "message is required" });
-    }
-
-    if (message.length > 5000) {
-      return res.status(400).json({ success: false, message: "message is too long (max 5000 characters)" });
-    }
-
-    // Send message to support-chat API in agent mode
-    const response = await supportChatService.sendMessage(sessionId, {
-      message,
-      execute_query: true,
-      generate_insight: false,
-      agent_mode: true, // Enable agent mode
-    });
-
-    // Update session metadata with agent information
-    if (response.agent_reasoning && Array.isArray(response.agent_reasoning)) {
-      const toolNames = response.agent_reasoning
-        .filter((step) => step.tool_name)
-        .map((step) => step.tool_name);
-
-      const uniqueTools = [...new Set(toolNames)];
-
-      const reasoningSummary = response.agent_reasoning
-        .map((step) => `Step ${step.step}: ${step.action}`)
-        .join(" → ");
-
-      await db.query(
-        `
-          UPDATE assistant_chat_sessions
-          SET
-            last_agent_step_count = ?,
-            agent_tools_used = ?,
-            reasoning_trace_summary = ?,
-            title = CASE WHEN title = 'New chat' THEN ? ELSE title END,
-            last_message_preview = ?,
-            last_message_at = NOW(),
-            updated_at = CURRENT_TIMESTAMP
-          WHERE support_chat_session_id = ?
-            AND company_id = ?
-            AND emp_id = ?
-            AND deleted_at IS NULL
-        `,
-        [
-          response.agent_reasoning.length,
-          JSON.stringify(uniqueTools),
-          reasoningSummary.slice(0, 5000),
-          buildTitleFromMessage(message),
-          buildPreviewFromMessage(message),
-          sessionId,
-          companyId,
-          empId,
-        ]
-      );
-    }
-
-    res.json({
-      success: true,
-      response,
-    });
   } catch (error) {
     next(error);
   }

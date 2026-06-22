@@ -3,8 +3,8 @@ import { MessageSquare, Database, Zap } from "lucide-react";
 /**
  * 3-way toggle component for Assistant Mode Selection.
  * Modes:
- * - "ask": Pure conversational assistant (no DB query / no execution).
- * - "query": Natural language to SQL query translator & execution.
+ * - "ask": Pure conversational, RAG-grounded help (no DB query / no execution).
+ * - "visualize": Natural language → SQL, executed read-only, returned as a chart.
  * - "agent": Multi-step reasoning agent with tool execution capabilities.
  */
 export default function AssistantModeSelector({ mode, onChange, disabled = false }) {
@@ -18,10 +18,10 @@ export default function AssistantModeSelector({ mode, onChange, disabled = false
       iconColor: "text-indigo-500",
     },
     {
-      id: "query",
-      label: "Query",
+      id: "visualize",
+      label: "Visualize",
       icon: Database,
-      description: "Translate questions to SQL and retrieve CRM database data",
+      description: "Translate questions to SQL, run them read-only, and chart the results",
       activeClass: "bg-white text-emerald-600 shadow-sm border-slate-200/50",
       iconColor: "text-emerald-500",
     },
@@ -74,7 +74,7 @@ export default function AssistantModeSelector({ mode, onChange, disabled = false
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
               </span>
             )}
-            {isActive && m.id === "query" && (
+            {isActive && m.id === "visualize" && (
               <span className="relative flex h-1.5 w-1.5 ml-0.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>

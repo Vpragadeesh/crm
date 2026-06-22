@@ -122,18 +122,22 @@ export class SupportChatV2Service {
   /**
    * Create a new chat session with schema context
    */
-  async createSession(queryType, schemaContext, dbUrl, systemInstructions, agentMode = true) {
+  async createSession(queryType, schemaContext, dbUrl, systemInstructions, _agentMode = true) {
+    // Session-create contract: query_type, schema_context, db_url, system_instructions.
+    // Mode (ask/visualize/agent) is chosen per-message at /chat time, not per-session.
     const payload = {
       query_type: queryType,
       schema_context: schemaContext || [],
       db_url: dbUrl || null,
       system_instructions: systemInstructions || "",
-      agent_mode: agentMode,
     };
 
+    // Generous timeout: when db_url is provided the service performs full remote
+    // schema introspection over TLS, which can take 30-40s against managed MySQL.
     const response = await supportChatFetch("/sessions", {
       method: "POST",
       body: JSON.stringify(payload),
+      timeout: 90000,
     });
 
     return {

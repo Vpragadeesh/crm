@@ -22,13 +22,13 @@ import {
   getAssistantSession,
   getAssistantHistory,
   sendAssistantMessage,
-  sendAgentMessage,
   deleteAssistantSession,
   renameAssistantSession,
 } from "../services/assistantService";
 import AssistantMessageBubble from "../components/assistant/AssistantMessageBubble";
 import AssistantWorkflow from "../components/assistant/AssistantWorkflow";
 import AssistantModeSelector from "../components/assistant/AssistantModeSelector";
+import PendingActionCard from "../components/assistant/PendingActionCard";
 import { buildVisualization } from "../utils/assistantVisualization";
 
 const QUICK_PROMPTS = [
@@ -219,6 +219,8 @@ const AIAssistantPage = () => {
   const [agentWorkflow, setAgentWorkflow] = useState([]);
   const [hasDbConnection, setHasDbConnection] = useState(true);
   const [assistantMode, setAssistantMode] = useState("ask");
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
+  const [confirming, setConfirming] = useState(false);
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
   const [renamingToken, setRenamingToken] = useState("");
   const [renameValue, setRenameValue] = useState("");
@@ -279,6 +281,8 @@ const AIAssistantPage = () => {
   }, []);
 
   useEffect(() => {
+    // Any pending agent confirmation is scoped to the active session.
+    setPendingConfirmation(null);
     if (!activeToken) {
       setMessages([]);
       setHasDbConnection(true);
@@ -400,7 +404,7 @@ const AIAssistantPage = () => {
             { id: "tools", label: "Executing CRM actions", status: "pending" },
             { id: "finalize", label: "Preparing response", status: "pending" },
           ]
-        : assistantMode === "query"
+        : assistantMode === "visualize"
         ? [
             { id: "translate", label: "Translating your question to SQL", status: "active" },
             { id: "execute", label: "Fetching data from CRM database", status: "pending" },
@@ -414,37 +418,31 @@ const AIAssistantPage = () => {
     setMessages((prev) => [...prev, optimistic]);
 
     try {
-      let data;
-
-      if (assistantMode === "agent") {
-        // Agent mode — POST /chat/agent
-        data = await sendAgentMessage(activeToken, userText);
-      } else if (assistantMode === "query") {
-        // Standard query mode — POST /chat
-        data = await sendAssistantMessage(activeToken, {
-          message: userText,
-          executeQuery: hasDbConnection,
-          generateInsight: true,
-        });
-      } else {
-        // Ask mode — POST /chat with askMode: true
-        data = await sendAssistantMessage(activeToken, {
-          message: userText,
-          askMode: true,
-        });
-      }
+      // Single mode-dispatched call (ask | visualize | agent).
+      const data = await sendAssistantMessage(activeToken, {
+        message: userText,
+        mode: assistantMode,
+      });
 
       setAgentWorkflow(data?.workflow || []);
 
       if (data?.response) {
         const assistantMessage = enrichAssistantMessage({
           ...data.response,
-          query: data.executedQuery || data.response?.query,
+          query: data.response?.query,
           visualization: data.visualization || data.response.visualization,
           workflow: data.workflow,
           agent_reasoning: data.response?.agent_reasoning || null,
+          sources: data.response?.sources || null,
         });
         setMessages((prev) => [...prev, assistantMessage]);
+      }
+
+      // A destructive agent action is paused awaiting user confirmation.
+      if (data?.requires_confirmation && data?.pending_action) {
+        setPendingConfirmation({ pendingAction: data.pending_action, message: userText });
+      } else {
+        setPendingConfirmation(null);
       }
 
       setSessions((prev) =>
@@ -467,7 +465,57 @@ const AIAssistantPage = () => {
       setSending(false);
       setAgentWorkflow([]);
     }
-  }, [activeToken, prompt, hasDbConnection, sending, assistantMode]);
+  }, [activeToken, prompt, sending, assistantMode]);
+
+  const handleConfirmAction = useCallback(async () => {
+    if (!pendingConfirmation || !activeToken || confirming) return;
+    setConfirming(true);
+    setError("");
+    try {
+      // Resend the original message with confirmed:true so the agent resumes
+      // and actually executes the previously gated destructive tool.
+      const data = await sendAssistantMessage(activeToken, {
+        message: pendingConfirmation.message,
+        mode: "agent",
+        confirmed: true,
+      });
+
+      if (data?.response) {
+        const assistantMessage = enrichAssistantMessage({
+          ...data.response,
+          query: data.response?.query,
+          visualization: data.visualization || data.response.visualization,
+          workflow: data.workflow,
+          agent_reasoning: data.response?.agent_reasoning || null,
+          sources: data.response?.sources || null,
+        });
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
+
+      // The resumed run may itself pause on a further confirmation.
+      if (data?.requires_confirmation && data?.pending_action) {
+        setPendingConfirmation({ pendingAction: data.pending_action, message: pendingConfirmation.message });
+      } else {
+        setPendingConfirmation(null);
+      }
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to confirm action.");
+    } finally {
+      setConfirming(false);
+    }
+  }, [activeToken, confirming, pendingConfirmation]);
+
+  const handleCancelAction = useCallback(() => {
+    setPendingConfirmation(null);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: "Okay — I won't run that action.",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+  }, []);
 
   const handleQuickPrompt = useCallback(
     (value) => {
@@ -572,9 +620,9 @@ const AIAssistantPage = () => {
               <div className="flex items-center gap-1.5 text-xs text-slate-500">
                 <Sparkles className="w-3.5 h-3.5" />
                 {assistantMode === "ask"
-                  ? "Ask mode — ask questions conversationally without database querying"
-                  : assistantMode === "query"
-                  ? "Query mode — translate questions to SQL and retrieve database data"
+                  ? "Ask mode — RAG-grounded help about how the CRM works (no database access)"
+                  : assistantMode === "visualize"
+                  ? "Visualize mode — translate questions to read-only SQL and chart the results"
                   : "Agent mode — multi-step reasoning + CRM actions"}
               </div>
               <AssistantModeSelector
@@ -613,14 +661,14 @@ const AIAssistantPage = () => {
                   <p className="text-sm text-slate-600">
                     {assistantMode === "agent"
                       ? "Try an agent workflow:"
-                      : assistantMode === "query"
+                      : assistantMode === "visualize"
                       ? "Try one of these data queries:"
                       : "Ask a general question:"}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {(assistantMode === "agent"
                       ? AGENT_QUICK_PROMPTS
-                      : assistantMode === "query"
+                      : assistantMode === "visualize"
                       ? QUICK_PROMPTS
                       : ASK_QUICK_PROMPTS
                     ).map((item) => (
@@ -630,13 +678,13 @@ const AIAssistantPage = () => {
                         className={`text-left rounded-xl border p-3 text-sm transition-colors ${
                           assistantMode === "agent"
                             ? "border-amber-200 bg-amber-50/40 text-amber-800 hover:border-amber-300 hover:bg-amber-50/70"
-                            : assistantMode === "query"
+                            : assistantMode === "visualize"
                             ? "border-emerald-200 bg-emerald-50/40 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50/70"
                             : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                         }`}
                       >
                         {assistantMode === "agent" && <span className="mr-1">⚡</span>}
-                        {assistantMode === "query" && <span className="mr-1">📊</span>}
+                        {assistantMode === "visualize" && <span className="mr-1">📊</span>}
                         {assistantMode === "ask" && <span className="mr-1">💬</span>}
                         {item}
                       </button>
@@ -674,6 +722,16 @@ const AIAssistantPage = () => {
 
             <footer className="p-3 sm:p-4 border-t border-slate-100 bg-white">
               {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+              {pendingConfirmation && (
+                <div className="mb-2.5">
+                  <PendingActionCard
+                    pendingAction={pendingConfirmation.pendingAction}
+                    onConfirm={handleConfirmAction}
+                    onCancel={handleCancelAction}
+                    confirming={confirming}
+                  />
+                </div>
+              )}
               <div className="flex items-end gap-2">
                 <textarea
                   ref={textareaRef}
